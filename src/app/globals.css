@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root {
+  --neon-pink: #ff00ff;
+  --neon-cyan: #00ffff;
+  --stage-bg: #0a0a1a;
+  --panel-bg: #111118;
+  --blaze: #ff6b6b;
+  --groove: #4ecdc4;
+  --nova: #ffe66d;
+  --riff: #a8e6cf;
+  --echo: #dda0dd;
+}
+
+body { background: var(--stage-bg); color: #e0e0e0; }
