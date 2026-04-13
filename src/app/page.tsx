@@ -174,11 +174,17 @@ export default function JamPage() {
     animFrameRef.current = requestAnimationFrame(drawVisualizer);
   }, []);
 
-  // ─── Audio playback with buffer queue ───
-  const audioQueueRef = useRef<string[]>([]);
+  // ─── Adaptive Jitter Buffer Audio Playback ───
+  // 核心思路：像 VoIP/WebRTC 一样，根据 chunk 到达间隔的抖动动态调整缓冲深度
+  // Lyria chunk 到达间隔极不稳定（1-8s），固定 BUFFER_MIN 无法应对
+  const audioQueueRef = useRef<AudioBuffer[]>([]);
   const isPlayingRef = useRef(false);
-  const BUFFER_MIN = 1; // normal mode: start immediately
-  const BUFFER_MIN_ROTATION = 3; // after rotation: pre-buffer 3 chunks for smoother start
+  const chunkArrivalTimesRef = useRef<number[]>([]); // 记录最近 N 个 chunk 到达时间
+  const bufferDepthRef = useRef(5); // 初始缓冲深度（chunk 数），会动态调整
+  const INITIAL_BUFFER = 5; // 初始预缓冲
+  const MIN_BUFFER = 2; // 最小缓冲深度
+  const MAX_BUFFER = 10; // 最大缓冲深度
+  const JITTER_WINDOW = 10; // 用最近 N 个间隔计算抖动
 
   const decodeB64ToPCM = useCallback((b64Data: string): AudioBuffer | null => {
     const ctx = audioCtxRef.current;
@@ -199,7 +205,29 @@ export default function JamPage() {
     return buffer;
   }, []);
 
-  const drainQueue = useCallback(() => {
+  // 计算自适应缓冲深度：基于 chunk 到达间隔的标准差
+  const updateBufferDepth = useCallback(() => {
+    const times = chunkArrivalTimesRef.current;
+    if (times.length < 3) return; // 数据不够，保持默认
+
+    // 计算最近的到达间隔
+    const intervals: number[] = [];
+    for (let i = 1; i < times.length; i++) {
+      intervals.push(times[i] - times[i - 1]);
+    }
+
+    // 标准差
+    const mean = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const variance = intervals.reduce((a, b) => a + (b - mean) ** 2, 0) / intervals.length;
+    const stddev = Math.sqrt(variance);
+
+    // 抖动越大 → 缓冲越深。每秒抖动 ≈ 需要多少个 chunk 的缓冲
+    // 每个 chunk 大约 1.6s 的音频，所以 stddev/1.6 ≈ 需要的额外缓冲
+    const needed = Math.ceil(MIN_BUFFER + stddev / 1.5);
+    bufferDepthRef.current = Math.min(MAX_BUFFER, Math.max(MIN_BUFFER, needed));
+  }, []);
+
+  const scheduleBuffers = useCallback(() => {
     const ctx = audioCtxRef.current;
     const destination = gainNodeRef.current || analyserRef.current;
     if (!ctx || !destination || audioQueueRef.current.length === 0) {
@@ -217,9 +245,7 @@ export default function JamPage() {
     }
 
     while (audioQueueRef.current.length > 0) {
-      const b64Data = audioQueueRef.current.shift()!;
-      const buffer = decodeB64ToPCM(b64Data);
-      if (!buffer) continue;
+      const buffer = audioQueueRef.current.shift()!;
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(destination);
@@ -230,18 +256,35 @@ export default function JamPage() {
       source.start(nextPlayTimeRef.current);
       nextPlayTimeRef.current += buffer.duration;
     }
-  }, [decodeB64ToPCM]);
+  }, []);
 
   const playAudioChunk = useCallback((b64Data: string) => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
-    audioQueueRef.current.push(b64Data);
-    // After rotation, wait for more chunks to pre-buffer
-    const minChunks = isRotatingRef.current ? BUFFER_MIN_ROTATION : BUFFER_MIN;
-    if (!isPlayingRef.current && audioQueueRef.current.length < minChunks) return;
-    drainQueue();
-  }, [drainQueue]);
+
+    const buffer = decodeB64ToPCM(b64Data);
+    if (!buffer) return;
+
+    // 记录到达时间用于 jitter 计算
+    const now = performance.now() / 1000;
+    const arrivals = chunkArrivalTimesRef.current;
+    arrivals.push(now);
+    if (arrivals.length > JITTER_WINDOW + 1) arrivals.shift();
+    updateBufferDepth();
+
+    audioQueueRef.current.push(buffer);
+
+    // 决定是否开始播放：
+    // - 轮转后：用 INITIAL_BUFFER 预缓冲
+    // - 正常播放中：立即 drain（已有足够 scheduled ahead）
+    // - 首次启动：用自适应 bufferDepth
+    if (!isPlayingRef.current) {
+      const target = isRotatingRef.current ? INITIAL_BUFFER : bufferDepthRef.current;
+      if (audioQueueRef.current.length < target) return;
+    }
+    scheduleBuffers();
+  }, [decodeB64ToPCM, updateBufferDepth, scheduleBuffers]);
 
   // ─── WebSocket connect (returns Promise that resolves when Lyria session is ready) ───
   const connectWs = useCallback((): Promise<void> => {
@@ -262,6 +305,8 @@ export default function JamPage() {
           audioCtxRef.current.close().catch(() => {});
         }
         audioQueueRef.current = [];
+        chunkArrivalTimesRef.current = [];
+        bufferDepthRef.current = INITIAL_BUFFER;
         isPlayingRef.current = false;
         isRotatingRef.current = false;
         const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
@@ -297,8 +342,10 @@ export default function JamPage() {
               gain.gain.setValueAtTime(gain.gain.value, now);
               gain.gain.linearRampToValueAtTime(0, now + 0.2);
             }
-            // Clear queue and prepare for new session's chunks
+            // Clear queue and reset jitter stats for new session
             audioQueueRef.current = [];
+            chunkArrivalTimesRef.current = [];
+            bufferDepthRef.current = INITIAL_BUFFER;
             isPlayingRef.current = false;
             isRotatingRef.current = true; // will pre-buffer and fade in
             if (audioCtxRef.current) {
@@ -672,7 +719,7 @@ export default function JamPage() {
                     const newVal = !currentConfig[key];
                     // Must send ALL config fields — partial update resets others to defaults
                     const fullConfig = { bpm: 120, temperature: 1.1, guidance: 4.0, density: 0.5, brightness: 0.5, ...currentConfig, [key]: newVal };
-                    const { scale: _s, ...safe } = fullConfig;
+                    const { scale: _s, ...safe } = fullConfig as Record<string, unknown>;
                     setCurrentConfig(safe);
                     sendWs({ command: 'set_config', config: safe });
                     lastSentConfigRef.current = JSON.stringify(safe);
@@ -698,7 +745,7 @@ export default function JamPage() {
                     onClick={() => {
                       // Must send ALL config fields — partial update resets others to defaults
                       const fullConfig = { bpm: 120, temperature: 1.1, guidance: 4.0, density: 0.5, brightness: 0.5, ...currentConfig, music_generation_mode: mode };
-                      const { scale: _s, ...safe } = fullConfig;
+                      const { scale: _s, ...safe } = fullConfig as Record<string, unknown>;
                       setCurrentConfig(safe);
                       sendWs({ command: 'set_config', config: safe });
                       // music_generation_mode change needs reset_context
