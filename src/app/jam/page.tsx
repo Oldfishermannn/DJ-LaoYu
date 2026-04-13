@@ -273,7 +273,11 @@ export default function JamPage() {
     }
 
     if (update.config && Object.keys(update.config).length > 0) {
-      sendWs({ command: 'set_config', config: update.config });
+      // Remove scale field - Lyria API rejects string enum values from Gemini
+      const { scale: _scale, ...safeConfig } = update.config;
+      if (Object.keys(safeConfig).length > 0) {
+        sendWs({ command: 'set_config', config: safeConfig });
+      }
       if (update.config.bpm) setCurrentBpm(update.config.bpm as number);
     }
 
