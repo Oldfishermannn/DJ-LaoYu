@@ -276,24 +276,7 @@ export default function JamPage() {
     lastUpdateRef.current = { ...lastUpdateRef.current, ...update };
     autoReconnectRef.current = true;
 
-    if (update.prompts && update.prompts.length > 0) {
-      sendWs({ command: 'set_prompts', prompts: update.prompts });
-      setCurrentPrompt(update.prompts[0].text);
-    }
-
-    if (update.config && Object.keys(update.config).length > 0) {
-      // Whitelist only known Lyria API fields to avoid rejection
-      const ALLOWED_KEYS = ['bpm', 'temperature', 'guidance', 'density', 'brightness', 'top_k', 'mute_bass', 'mute_drums', 'only_bass_and_drums'];
-      const safeConfig: Record<string, unknown> = {};
-      for (const key of ALLOWED_KEYS) {
-        if (key in update.config) safeConfig[key] = update.config[key];
-      }
-      if (Object.keys(safeConfig).length > 0) {
-        sendWs({ command: 'set_config', config: safeConfig });
-      }
-      if (update.config.bpm) setCurrentBpm(update.config.bpm as number);
-    }
-
+    // Send play FIRST, then set prompts/config (Lyria needs active session)
     if (update.action) {
       if (update.action === 'play' || update.action === 'update') {
         sendWs({ command: 'play' });
@@ -308,6 +291,24 @@ export default function JamPage() {
       } else if (update.action === 'reset_context') {
         sendWs({ command: 'reset_context' });
       }
+    }
+
+    // Set prompts/config AFTER play
+    if (update.prompts && update.prompts.length > 0) {
+      sendWs({ command: 'set_prompts', prompts: update.prompts });
+      setCurrentPrompt(update.prompts[0].text);
+    }
+
+    if (update.config && Object.keys(update.config).length > 0) {
+      const ALLOWED_KEYS = ['bpm', 'temperature', 'guidance', 'density', 'brightness', 'top_k', 'mute_bass', 'mute_drums', 'only_bass_and_drums'];
+      const safeConfig: Record<string, unknown> = {};
+      for (const key of ALLOWED_KEYS) {
+        if (key in update.config) safeConfig[key] = update.config[key];
+      }
+      if (Object.keys(safeConfig).length > 0) {
+        sendWs({ command: 'set_config', config: safeConfig });
+      }
+      if (update.config.bpm) setCurrentBpm(update.config.bpm as number);
     }
   }, [sendWs]);
 
