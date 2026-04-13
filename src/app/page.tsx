@@ -137,8 +137,6 @@ export default function JamPage() {
   const lastUpdateRef = useRef<LyriaUpdate | null>(null);
   const autoReconnectRef = useRef(false); // true = should auto-reconnect on close
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const prevPromptsRef = useRef<Array<{ text: string; weight: number }> | null>(null);
-  const crossfadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ─── Auto-scroll chat ───
   useEffect(() => {
@@ -298,28 +296,6 @@ export default function JamPage() {
     }
   }, []);
 
-  // ─── Crossfade: 2-step transition from old prompts to new prompts ───
-  const crossfadePrompts = useCallback((
-    oldPrompts: Array<{ text: string; weight: number }>,
-    newPrompts: Array<{ text: string; weight: number }>,
-  ) => {
-    if (crossfadeTimerRef.current) clearTimeout(crossfadeTimerRef.current);
-
-    // Step 1: blend old (half weight) + new (half weight)
-    const blended: Array<{ text: string; weight: number }> = [
-      ...oldPrompts.map(p => ({ text: p.text, weight: p.weight * 0.4 })),
-      ...newPrompts.map(p => ({ text: p.text, weight: p.weight * 0.6 })),
-    ];
-    sendWs({ command: 'set_prompts', prompts: blended });
-
-    // Step 2: after 800ms, set final new prompts at full weight
-    crossfadeTimerRef.current = setTimeout(() => {
-      sendWs({ command: 'set_prompts', prompts: newPrompts });
-      prevPromptsRef.current = newPrompts;
-      crossfadeTimerRef.current = null;
-    }, 800);
-  }, [sendWs]);
-
   // ─── Apply Lyria params from chat ───
   const applyLyriaUpdate = useCallback((update: LyriaUpdate) => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
@@ -329,16 +305,8 @@ export default function JamPage() {
     autoReconnectRef.current = true;
 
     if (update.prompts && update.prompts.length > 0) {
+      sendWs({ command: 'set_prompts', prompts: update.prompts });
       setCurrentPrompt(update.prompts[0].text);
-
-      // Use crossfade if we have previous prompts (smooth transition)
-      if (prevPromptsRef.current && update.action !== 'play') {
-        crossfadePrompts(prevPromptsRef.current, update.prompts);
-      } else {
-        // First time or fresh play: set directly
-        sendWs({ command: 'set_prompts', prompts: update.prompts });
-        prevPromptsRef.current = update.prompts;
-      }
     }
 
     if (update.config && Object.keys(update.config).length > 0) {
@@ -368,7 +336,7 @@ export default function JamPage() {
         setStatus('BPM 变更，重置中...');
       }
     }
-  }, [sendWs, crossfadePrompts]);
+  }, [sendWs]);
 
   // ─── Parse AI response: extract text + JSON ───
   const parseResponse = (raw: string): { text: string; params: LyriaUpdate | null } => {
@@ -547,7 +515,6 @@ export default function JamPage() {
     return () => {
       autoReconnectRef.current = false;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
-      if (crossfadeTimerRef.current) clearTimeout(crossfadeTimerRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       wsRef.current?.close();
     };
