@@ -18,7 +18,7 @@ interface LyriaUpdate {
 }
 
 // ─── Constants ───
-const WS_URL = 'ws://localhost:8765/ws';
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8765/ws';
 const SAMPLE_RATE = 48000;
 const CHANNELS = 2;
 
@@ -653,16 +653,38 @@ export default function JamPage() {
     };
   }, []);
 
+  const [showPanel, setShowPanel] = useState(false);
+
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: '#0a0a14', color: '#e0e0e0' }}>
-      {/* Left: Music Player */}
-      <div className="w-[380px] shrink-0 flex flex-col border-r border-[#222] p-4 gap-4">
-        <h1 className="text-xl font-bold" style={{ color: '#00ffff', fontFamily: 'monospace' }}>
-          Jam Session
+    <div className="flex flex-col md:flex-row h-[100dvh] overflow-hidden" style={{ background: '#0a0a14', color: '#e0e0e0' }}>
+      {/* ─── Mobile Top Bar ─── */}
+      <div className="md:hidden shrink-0 flex items-center gap-2 px-3 py-2 border-b border-[#222]">
+        <h1 className="text-base font-bold flex-1" style={{ color: '#00ffff', fontFamily: 'monospace' }}>
+          DJ Cyber
+        </h1>
+        <div className="text-xs px-2 py-1 rounded" style={{
+          background: '#16213e',
+          borderLeft: `3px solid ${wsConnected ? (chunkCount > 0 ? '#e94560' : '#4caf50') : '#f44336'}`,
+        }}>
+          {status}
+        </div>
+        <button
+          onClick={() => setShowPanel(!showPanel)}
+          className="px-2 py-1 rounded text-xs cursor-pointer"
+          style={{ background: showPanel ? '#e94560' : '#16213e', color: '#fff' }}
+        >
+          {showPanel ? '聊天' : '控制'}
+        </button>
+      </div>
+
+      {/* ─── Left Panel (desktop: always visible, mobile: toggle) ─── */}
+      <div className={`${showPanel ? 'flex' : 'hidden'} md:flex w-full md:w-[380px] shrink-0 flex-col border-r border-[#222] p-3 md:p-4 gap-3 md:gap-4 overflow-y-auto`}>
+        <h1 className="hidden md:block text-xl font-bold" style={{ color: '#00ffff', fontFamily: 'monospace' }}>
+          DJ Cyber
         </h1>
 
-        {/* Status */}
-        <div className="px-3 py-2 rounded-lg text-sm" style={{
+        {/* Status (desktop only, mobile has top bar) */}
+        <div className="hidden md:block px-3 py-2 rounded-lg text-sm" style={{
           background: '#16213e',
           borderLeft: `4px solid ${wsConnected ? (chunkCount > 0 ? '#e94560' : '#4caf50') : '#f44336'}`,
         }}>
@@ -670,33 +692,8 @@ export default function JamPage() {
         </div>
 
         {/* Visualizer */}
-        <canvas ref={canvasRef} width={600} height={80}
-          style={{ width: '100%', height: 80, background: '#0a0a1a', borderRadius: 8 }} />
-
-        {/* Current params */}
-        {currentPrompts.length > 0 && (
-          <div className="rounded-lg p-3 text-xs space-y-2 overflow-y-auto" style={{ background: '#16213e', maxHeight: 280 }}>
-            <div style={{ color: '#e94560', fontWeight: 600 }}>Prompts</div>
-            {currentPrompts.map((p, i) => (
-              <div key={i} className="flex gap-2 items-start">
-                <span className="shrink-0 px-1 rounded" style={{ background: '#e94560', color: '#fff', fontSize: 10 }}>
-                  {p.weight}
-                </span>
-                <span style={{ color: '#ccc', lineHeight: '1.3' }}>{p.text}</span>
-              </div>
-            ))}
-            {Object.keys(currentConfig).length > 0 && (
-              <>
-                <div style={{ color: '#e94560', fontWeight: 600, marginTop: 4 }}>Config</div>
-                <div className="flex gap-x-3 gap-y-1 flex-wrap" style={{ color: '#999' }}>
-                  {Object.entries(currentConfig).map(([k, v]) => (
-                    <span key={k}><span style={{ color: '#666' }}>{k}:</span> {String(v)}</span>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        )}
+        <canvas ref={canvasRef} width={600} height={60}
+          style={{ width: '100%', height: 60, background: '#0a0a1a', borderRadius: 8 }} />
 
         {/* Controls */}
         <div className="flex gap-2 flex-wrap">
@@ -708,7 +705,7 @@ export default function JamPage() {
                 connectWs();
               }
             }}
-            className="px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer"
+            className="px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer flex-1 min-w-[100px]"
             style={{ background: wsConnected ? '#f44336' : '#2196f3', color: '#fff' }}>
             {wsConnected ? '断开' : '连接 Lyria'}
           </button>
@@ -737,7 +734,6 @@ export default function JamPage() {
                 <button key={key}
                   onClick={() => {
                     const newVal = !currentConfig[key];
-                    // Must send ALL config fields — partial update resets others to defaults
                     const fullConfig = { bpm: 120, temperature: 1.1, guidance: 4.0, density: 0.5, brightness: 0.5, ...currentConfig, [key]: newVal };
                     const { scale: _s, ...safe } = fullConfig as Record<string, unknown>;
                     setCurrentConfig(safe);
@@ -763,17 +759,15 @@ export default function JamPage() {
                 return (
                   <button key={mode}
                     onClick={() => {
-                      // Must send ALL config fields — partial update resets others to defaults
                       const fullConfig = { bpm: 120, temperature: 1.1, guidance: 4.0, density: 0.5, brightness: 0.5, ...currentConfig, music_generation_mode: mode };
                       const { scale: _s, ...safe } = fullConfig as Record<string, unknown>;
                       setCurrentConfig(safe);
                       sendWs({ command: 'set_config', config: safe });
-                      // music_generation_mode change needs reset_context
                       sendWs({ command: 'reset_context' });
                       sendWs({ command: 'play' });
                       lastSentConfigRef.current = JSON.stringify(safe);
                     }}
-                    className="px-2 py-1 rounded text-xs cursor-pointer transition-colors"
+                    className="px-2 py-1 rounded text-xs cursor-pointer transition-colors flex-1 text-center"
                     style={{
                       background: current === mode ? '#e94560' : '#1a1a2e',
                       color: current === mode ? '#fff' : '#888',
@@ -788,14 +782,39 @@ export default function JamPage() {
           </div>
         )}
 
-        {/* System Prompt */}
-        <div className="mt-auto rounded-lg overflow-hidden" style={{ background: '#16213e' }}>
+        {/* Current params */}
+        {currentPrompts.length > 0 && (
+          <div className="rounded-lg p-3 text-xs space-y-2 overflow-y-auto" style={{ background: '#16213e', maxHeight: 200 }}>
+            <div style={{ color: '#e94560', fontWeight: 600 }}>Prompts</div>
+            {currentPrompts.map((p, i) => (
+              <div key={i} className="flex gap-2 items-start">
+                <span className="shrink-0 px-1 rounded" style={{ background: '#e94560', color: '#fff', fontSize: 10 }}>
+                  {p.weight}
+                </span>
+                <span style={{ color: '#ccc', lineHeight: '1.3' }}>{p.text}</span>
+              </div>
+            ))}
+            {Object.keys(currentConfig).length > 0 && (
+              <>
+                <div style={{ color: '#e94560', fontWeight: 600, marginTop: 4 }}>Config</div>
+                <div className="flex gap-x-3 gap-y-1 flex-wrap" style={{ color: '#999' }}>
+                  {Object.entries(currentConfig).map(([k, v]) => (
+                    <span key={k}><span style={{ color: '#666' }}>{k}:</span> {String(v)}</span>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* System Prompt (desktop only) */}
+        <div className="hidden md:block mt-auto rounded-lg overflow-hidden" style={{ background: '#16213e' }}>
           <button
             onClick={() => setShowPrompt(!showPrompt)}
             className="w-full px-3 py-2 text-left text-xs font-semibold cursor-pointer flex justify-between items-center"
             style={{ color: '#e94560' }}
           >
-            <span>DJ Cyber System Prompt</span>
+            <span>System Prompt</span>
             <span style={{ color: '#666' }}>{showPrompt ? '▼' : '▶'}</span>
           </button>
           {showPrompt && (
@@ -808,20 +827,20 @@ export default function JamPage() {
         </div>
       </div>
 
-      {/* Right: Chat */}
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* ─── Chat Area ─── */}
+      <div className={`${showPanel ? 'hidden' : 'flex'} md:flex flex-1 flex-col min-w-0`}>
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
+        <div className="flex-1 overflow-y-auto px-3 md:px-4 py-3 space-y-3 min-h-0">
           {messages.length === 0 && (
-            <div className="text-center py-20" style={{ color: '#444' }}>
+            <div className="text-center py-12 md:py-20" style={{ color: '#444' }}>
               <div className="text-lg mb-2">DJ Cyber 准备就绪</div>
-              <div className="text-sm">告诉我你想听什么音乐，我来实时生成</div>
+              <div className="text-sm">告诉我你想听什么音乐</div>
             </div>
           )}
 
           {messages.map((msg) => (
             <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-              <div className="max-w-[80%]">
+              <div className="max-w-[85%] md:max-w-[80%]">
                 {msg.role === 'user' ? (
                   <div className="rounded-lg px-3 py-2 text-sm" style={{ background: '#162447', color: '#88d8f8' }}>
                     {msg.text}
@@ -837,12 +856,10 @@ export default function JamPage() {
                       <span style={{ color: '#ccc' }}>{msg.text}</span>
                     </div>
                     {msg.params && (
-                      <div className="mt-1 rounded px-2 py-1 text-xs flex gap-3 flex-wrap" style={{ background: '#111', color: '#666' }}>
+                      <div className="mt-1 rounded px-2 py-1 text-xs flex gap-2 md:gap-3 flex-wrap" style={{ background: '#111', color: '#666' }}>
                         {msg.params.action && <span style={{ color: '#4caf50' }}>{msg.params.action}</span>}
                         {msg.params.config?.bpm != null && <span>{'BPM:' + String(msg.params.config.bpm)}</span>}
-                        {msg.params.config?.density != null && <span>{'密度:' + String(msg.params.config.density)}</span>}
-                        {msg.params.config?.brightness != null && <span>{'亮度:' + String(msg.params.config.brightness)}</span>}
-                        {msg.params.prompts?.[0] && <span className="truncate max-w-[200px]" title={msg.params.prompts[0].text}>{String(msg.params.prompts[0].text)}</span>}
+                        {msg.params.prompts?.[0] && <span className="truncate max-w-[160px] md:max-w-[200px]" title={msg.params.prompts[0].text}>{String(msg.params.prompts[0].text)}</span>}
                       </div>
                     )}
                   </div>
@@ -864,9 +881,9 @@ export default function JamPage() {
 
         {/* Screenshot preview */}
         {screenPreview && (
-          <div className="shrink-0 px-4 py-2 border-t border-[#1a1a2e]">
+          <div className="shrink-0 px-3 md:px-4 py-2 border-t border-[#1a1a2e]">
             <div className="relative inline-block">
-              <img src={screenPreview} alt="截屏" className="rounded-lg max-h-[120px] opacity-70" />
+              <img src={screenPreview} alt="截屏" className="rounded-lg max-h-[80px] md:max-h-[120px] opacity-70" />
               <button onClick={() => setScreenPreview(null)}
                 className="absolute top-1 right-1 w-5 h-5 rounded-full text-xs cursor-pointer flex items-center justify-center"
                 style={{ background: '#333', color: '#aaa' }}>x</button>
@@ -875,15 +892,10 @@ export default function JamPage() {
         )}
 
         {/* Quick actions */}
-        <div className="shrink-0 px-4 py-2 flex gap-2 flex-wrap border-t border-[#1a1a2e]">
-          <button onClick={handleScreenCapture} disabled={isAnalyzing}
-            className="px-3 py-1 rounded-full text-xs cursor-pointer transition-colors disabled:opacity-40"
-            style={{ background: '#1a1a2e', border: '1px solid #e94560', color: '#e94560' }}>
-            {isAnalyzing ? '分析中...' : '截屏识别音乐'}
-          </button>
+        <div className="shrink-0 px-3 md:px-4 py-2 flex gap-1.5 md:gap-2 flex-wrap border-t border-[#1a1a2e]">
           {quickActions.map((q) => (
             <button key={q} onClick={() => { setInput(q); }}
-              className="px-3 py-1 rounded-full text-xs cursor-pointer transition-colors hover:border-[#e94560]"
+              className="px-2.5 md:px-3 py-1 rounded-full text-xs cursor-pointer transition-colors hover:border-[#e94560]"
               style={{ background: '#111', border: '1px solid #333', color: '#888' }}>
               {q}
             </button>
@@ -892,13 +904,14 @@ export default function JamPage() {
 
         {/* Input */}
         <form onSubmit={(e) => { e.preventDefault(); handleSend(); }}
-          className="shrink-0 flex gap-2 px-4 py-3 border-t border-[#222]">
+          className="shrink-0 flex gap-2 px-3 md:px-4 py-2 md:py-3 border-t border-[#222]"
+          style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}>
           <input type="text" value={input} onChange={(e) => setInput(e.target.value)}
             placeholder="告诉 DJ Cyber 你想听什么..."
             disabled={isLoading}
             className="flex-1 bg-[#111] text-[#eee] text-sm rounded-lg px-3 py-2.5 border border-[#333] outline-none focus:border-[#e94560] placeholder-[#555] disabled:opacity-50" />
           <button type="submit" disabled={isLoading || !input.trim()}
-            className="px-5 py-2.5 text-sm font-semibold rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-4 md:px-5 py-2.5 text-sm font-semibold rounded-lg cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             style={{ background: '#e94560', color: '#fff' }}>
             发送
           </button>
