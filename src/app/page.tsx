@@ -235,17 +235,21 @@ export default function JamPage() {
       ws.onopen = () => {
         setWsConnected(true);
         setStatus('正在连接 Lyria...');
-        const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.connect(ctx.destination);
-        audioCtxRef.current = ctx;
-        analyserRef.current = analyser;
+        // Reuse AudioContext if it exists, only create on first connect
+        if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
+          const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 256;
+          analyser.connect(ctx.destination);
+          audioCtxRef.current = ctx;
+          analyserRef.current = analyser;
+        }
         nextPlayTimeRef.current = 0;
         chunkCountRef.current = 0;
         setChunkCount(0);
-        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-        animFrameRef.current = requestAnimationFrame(drawVisualizer);
+        if (!animFrameRef.current) {
+          animFrameRef.current = requestAnimationFrame(drawVisualizer);
+        }
       };
       ws.onmessage = (evt) => {
         const data = JSON.parse(evt.data);
@@ -504,7 +508,7 @@ export default function JamPage() {
           setStatus('重连失败');
           autoReconnectRef.current = false;
         });
-      }, 1000);
+      }, 100);
       return () => {
         if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       };
