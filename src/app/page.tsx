@@ -346,7 +346,10 @@ export default function JamPage() {
         }),
       });
 
-      if (!res.ok) throw new Error(`API error ${res.status}`);
+      if (!res.ok) {
+        if (res.status === 503) throw new Error('Gemini 服务暂时过载，稍后再试');
+        throw new Error(`API error ${res.status}`);
+      }
       const data = await res.json();
       const rawText: string = data.text ?? '';
 
