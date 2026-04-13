@@ -293,15 +293,6 @@ export default function JamPage() {
     const userMsg: Message = { id: uid(), role: 'user', text, time: Date.now() };
     setMessages(prev => [...prev, userMsg]);
 
-    // Auto-connect and wait for Lyria session ready
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !lyriaReadyRef.current) {
-      try {
-        await connectWs();
-      } catch {
-        // connection failed, continue to chat anyway
-      }
-    }
-
     try {
       const history = historyRef.current;
       const res = await fetch('/api/chat', {
