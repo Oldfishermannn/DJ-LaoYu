@@ -245,15 +245,18 @@ export default function JamPage() {
       isRotatingRef.current = false;
     }
 
+    const now = ctx.currentTime;
+    // If we've fallen behind (buffer underrun), jump to now
+    // But don't set it to now+tiny — let the chunk's own duration create the buffer
+    if (nextPlayTimeRef.current < now) {
+      nextPlayTimeRef.current = now;
+    }
+
     while (audioQueueRef.current.length > 0) {
       const buffer = audioQueueRef.current.shift()!;
       const source = ctx.createBufferSource();
       source.buffer = buffer;
       source.connect(destination);
-      const now = ctx.currentTime;
-      if (nextPlayTimeRef.current < now) {
-        nextPlayTimeRef.current = now + 0.01;
-      }
       source.start(nextPlayTimeRef.current);
       nextPlayTimeRef.current += buffer.duration;
     }
@@ -345,13 +348,12 @@ export default function JamPage() {
               gain.gain.setValueAtTime(gain.gain.value, now);
               gain.gain.linearRampToValueAtTime(0, now + 0.2);
             }
-            // Clear queue and reset jitter stats for new session
+            // Clear queue but keep hasStartedRef=true — no re-buffering on rotation
+            // Rotation chunks should play immediately to minimize silence gap
             audioQueueRef.current = [];
             chunkArrivalTimesRef.current = [];
-            bufferDepthRef.current = INITIAL_BUFFER;
             isPlayingRef.current = false;
-            hasStartedRef.current = false; // re-enable pre-buffering for new session
-            isRotatingRef.current = true; // will pre-buffer and fade in
+            isRotatingRef.current = true; // will fade in on next chunk
             if (audioCtxRef.current) {
               nextPlayTimeRef.current = audioCtxRef.current.currentTime + 0.3;
             }
