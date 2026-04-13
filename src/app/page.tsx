@@ -262,12 +262,24 @@ export default function JamPage() {
           setChunkCount(chunkCountRef.current);
           playAudioChunk(data.data);
         } else if (data.type === 'status') {
-          setStatus(data.message);
-          // "connected" = Lyria session is ready
-          if (data.message === 'connected' && !lyriaReadyRef.current) {
-            lyriaReadyRef.current = true;
-            lyriaReadyResolveRef.current?.();
-            lyriaReadyResolveRef.current = null;
+          if (data.message === 'reconnecting') {
+            // Server is rotating Lyria session — reset audio buffer for seamless transition
+            setStatus('会话轮转中...');
+            audioQueueRef.current = [];
+            isPlayingRef.current = false;
+            if (audioCtxRef.current) {
+              // Reset play time so new chunks start immediately
+              nextPlayTimeRef.current = audioCtxRef.current.currentTime + 0.05;
+            }
+          } else if (data.message === 'connected') {
+            setStatus('已连接');
+            if (!lyriaReadyRef.current) {
+              lyriaReadyRef.current = true;
+              lyriaReadyResolveRef.current?.();
+              lyriaReadyResolveRef.current = null;
+            }
+          } else {
+            setStatus(data.message);
           }
         } else if (data.type === 'error') {
           setStatus('错误: ' + data.message);
