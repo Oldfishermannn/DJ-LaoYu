@@ -313,7 +313,8 @@ export default function JamPage() {
 
     if (update.prompts && update.prompts.length > 0) {
       sendWs({ command: 'set_prompts', prompts: update.prompts });
-      setCurrentPrompt(update.prompts[0].text);
+      // Show all prompts in UI, not just the first one
+      setCurrentPrompt(update.prompts.map(p => p.text).join(' + '));
     }
 
     if (update.config && Object.keys(update.config).length > 0) {
@@ -511,10 +512,15 @@ export default function JamPage() {
   // ─── Auto-reconnect when Lyria session times out ───
   useEffect(() => {
     if (!wsConnected && autoReconnectRef.current && lastUpdateRef.current) {
-      const saved = lastUpdateRef.current;
       reconnectTimerRef.current = setTimeout(() => {
+        // Read latest state at reconnect time (not stale closure value)
+        const latest = lastUpdateRef.current;
+        if (!latest) return;
+        // Force action to "play" — we need to restart after reconnect
+        const reconnectParams = { ...latest, action: 'play' as const };
+        lastSentConfigRef.current = ''; // reset config diff so config gets sent
         connectWs().then(() => {
-          applyLyriaUpdate(saved);
+          applyLyriaUpdate(reconnectParams);
         }).catch(() => {
           setStatus('重连失败');
           autoReconnectRef.current = false;
