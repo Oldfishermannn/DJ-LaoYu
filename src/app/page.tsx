@@ -135,6 +135,7 @@ export default function JamPage() {
   const lyriaReadyRef = useRef(false);
   const lyriaReadyResolveRef = useRef<(() => void) | null>(null);
   const lastUpdateRef = useRef<LyriaUpdate | null>(null);
+  const lastSentConfigRef = useRef<string>(''); // JSON string of last sent config for diffing
   const autoReconnectRef = useRef(false); // true = should auto-reconnect on close
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -319,7 +320,12 @@ export default function JamPage() {
       // Remove scale field - Lyria API rejects string enum values from Gemini
       const { scale: _scale, ...safeConfig } = update.config;
       if (Object.keys(safeConfig).length > 0) {
-        sendWs({ command: 'set_config', config: safeConfig });
+        // Only send set_config if values actually changed — resending resets entire config and causes stutter
+        const configJson = JSON.stringify(safeConfig);
+        if (configJson !== lastSentConfigRef.current) {
+          sendWs({ command: 'set_config', config: safeConfig });
+          lastSentConfigRef.current = configJson;
+        }
       }
       if (update.config.bpm) setCurrentBpm(update.config.bpm as number);
     }
