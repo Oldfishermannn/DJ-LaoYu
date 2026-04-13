@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import BandLobby from '@/components/BandLobby';
 import StageCanvas from '@/components/StageCanvas';
 import PerformBar from '@/components/PerformBar';
 import ChatPanel from '@/components/ChatPanel';
@@ -33,6 +34,7 @@ function toHistory(messages: ChatMessage[], limit = 10) {
 }
 
 export default function Home() {
+  const [phase, setPhase] = useState<'lobby' | 'stage'>('lobby');
   const [members, setMembers] = useState<BandMember[]>(PRESET_CHARACTERS);
   const [showCreator, setShowCreator] = useState(false);
 
@@ -59,8 +61,9 @@ export default function Home() {
   // Track if welcome message was sent
   const welcomeSent = useRef(false);
 
-  // NOVA sends welcome message on mount
+  // NOVA sends welcome message when entering stage
   useEffect(() => {
+    if (phase !== 'stage') return;
     if (welcomeSent.current) return;
     welcomeSent.current = true;
 
@@ -76,7 +79,7 @@ export default function Home() {
       },
     ]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [phase]);
 
   const handleCharacterClick = (characterId: string) => {
     setActiveCharacterId(characterId);
@@ -257,30 +260,65 @@ export default function Home() {
     }
   };
 
+  // --- Lobby Phase: Character Cards ---
+  if (phase === 'lobby') {
+    return <BandLobby members={members} onEnterStage={() => setPhase('stage')} />;
+  }
+
+  // --- Stage Phase: Left stage + Right chat, 50/50 ---
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[var(--stage-bg,#0a0a14)]">
-      {/* Stage: top 65vh */}
-      <div className="w-full shrink-0 relative" style={{ height: '65vh' }}>
-        <StageCanvas
+    <div className="flex flex-row h-screen overflow-hidden bg-[var(--stage-bg,#0a0a14)]">
+      {/* Left: Stage + Perform bar */}
+      <div className="flex flex-col w-1/2 h-full border-r border-[#222]">
+        {/* Stage canvas */}
+        <div className="flex-1 relative min-h-0">
+          <StageCanvas
+            members={members}
+            isPlaying={isPlaying}
+            energy={energy}
+            onCharacterClick={handleCharacterClick}
+          />
+          {/* 自建乐手按钮 */}
+          <button
+            onClick={() => setShowCreator(true)}
+            className="absolute top-3 right-3 px-3 py-1.5 rounded-lg text-xs font-bold transition-all z-10"
+            style={{
+              background: 'rgba(13,13,26,0.85)',
+              border: '1px solid #00ffff',
+              color: '#00ffff',
+              backdropFilter: 'blur(4px)',
+              boxShadow: '0 0 10px rgba(0,255,255,0.2)',
+            }}
+          >
+            ＋ 自建乐手
+          </button>
+        </div>
+
+        {/* Perform bar */}
+        <div className="shrink-0">
+          <PerformBar
+            isPlaying={isPlaying}
+            isLoading={isStartingShow}
+            onStartShow={handleStartShow}
+            onStop={handleStop}
+            onExportSheet={handleExportSheet}
+            hasPerformed={hasPerformed}
+            isGeneratingSheet={isGeneratingSheet}
+          />
+        </div>
+      </div>
+
+      {/* Right: Chat panel */}
+      <div className="w-1/2 h-full">
+        <ChatPanel
+          messages={messages}
           members={members}
-          isPlaying={isPlaying}
-          energy={energy}
-          onCharacterClick={handleCharacterClick}
+          activeCharacterId={activeCharacterId}
+          chatMode={chatMode}
+          onSendMessage={handleSendMessage}
+          onModeChange={handleModeChange}
+          isLoading={isLoading}
         />
-        {/* 自建乐手按钮 */}
-        <button
-          onClick={() => setShowCreator(true)}
-          className="absolute top-3 right-3 px-3 py-1.5 rounded-lg text-xs font-bold transition-all z-10"
-          style={{
-            background: 'rgba(13,13,26,0.85)',
-            border: '1px solid #00ffff',
-            color: '#00ffff',
-            backdropFilter: 'blur(4px)',
-            boxShadow: '0 0 10px rgba(0,255,255,0.2)',
-          }}
-        >
-          ＋ 自建乐手
-        </button>
       </div>
 
       {/* Character Creator Modal */}
@@ -299,32 +337,6 @@ export default function Home() {
           onClose={() => setShowSheetModal(false)}
         />
       )}
-
-      {/* Perform bar */}
-      <div className="shrink-0">
-        <PerformBar
-          isPlaying={isPlaying}
-          isLoading={isStartingShow}
-          onStartShow={handleStartShow}
-          onStop={handleStop}
-          onExportSheet={handleExportSheet}
-          hasPerformed={hasPerformed}
-          isGeneratingSheet={isGeneratingSheet}
-        />
-      </div>
-
-      {/* Chat panel: bottom 35vh */}
-      <div className="w-full shrink-0 overflow-hidden" style={{ height: 'calc(35vh - 48px)' }}>
-        <ChatPanel
-          messages={messages}
-          members={members}
-          activeCharacterId={activeCharacterId}
-          chatMode={chatMode}
-          onSendMessage={handleSendMessage}
-          onModeChange={handleModeChange}
-          isLoading={isLoading}
-        />
-      </div>
     </div>
   );
 }

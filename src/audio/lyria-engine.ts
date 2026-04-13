@@ -1,124 +1,73 @@
 'use client';
 
-import { GoogleGenAI, type LiveMusicServerMessage, Scale } from '@google/genai';
 import { getAudioContext, getGainNode } from './audio-context';
 import type { LyriaParams } from '@/types';
 
-type LyriaSession = ReturnType<GoogleGenAI['live']['music']['connect']> extends Promise<infer T> ? T : never;
+let currentSource: AudioBufferSourceNode | null = null;
+let isCurrentlyPlaying = false;
 
-let client: GoogleGenAI | null = null;
-let session: LyriaSession | null = null;
-let nextPlayTime = 0;
-
-const KEY_TO_SCALE: Record<string, Scale> = {
-  'A':  Scale.A_MAJOR_G_FLAT_MINOR,
-  'Am': Scale.C_MAJOR_A_MINOR,
-  'Bb': Scale.B_FLAT_MAJOR_G_MINOR,
-  'C':  Scale.C_MAJOR_A_MINOR,
-  'Cm': Scale.C_MAJOR_A_MINOR,
-  'D':  Scale.D_MAJOR_B_MINOR,
-  'Dm': Scale.D_MAJOR_B_MINOR,
-  'E':  Scale.E_MAJOR_D_FLAT_MINOR,
-  'Em': Scale.E_MAJOR_D_FLAT_MINOR,
-  'F':  Scale.F_MAJOR_D_MINOR,
-  'G':  Scale.G_MAJOR_E_MINOR,
-  'Gm': Scale.G_MAJOR_E_MINOR,
-};
-
-function ensureClient(): GoogleGenAI {
-  if (!client) {
-    const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY || '';
-    if (!apiKey) throw new Error('Missing NEXT_PUBLIC_GEMINI_API_KEY');
-    client = new GoogleGenAI({ apiKey, apiVersion: 'v1alpha' });
-  }
-  return client;
-}
-
-/** Decode PCM16 stereo base64 → schedule playback through GainNode */
-function playPcmChunk(base64Data: string) {
-  const ctx = getAudioContext();
-  const gain = getGainNode();
-
-  const raw = atob(base64Data);
-  const bytes = new Uint8Array(raw.length);
-  for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-
-  const int16 = new Int16Array(bytes.buffer);
-  const numSamples = int16.length / 2;
-
-  const buffer = ctx.createBuffer(2, numSamples, 48000);
-  const left = buffer.getChannelData(0);
-  const right = buffer.getChannelData(1);
-  for (let i = 0; i < numSamples; i++) {
-    left[i] = int16[i * 2] / 32768;
-    right[i] = int16[i * 2 + 1] / 32768;
-  }
-
-  const source = ctx.createBufferSource();
-  source.buffer = buffer;
-  source.connect(gain); // → GainNode → AnalyserNode → destination
-
-  const now = ctx.currentTime;
-  if (nextPlayTime < now) nextPlayTime = now;
-  source.start(nextPlayTime);
-  nextPlayTime += buffer.duration;
-}
-
-/** Start streaming music via Lyria RealTime */
+/**
+ * Generate music via Lyria 3 Clip (30s MP3) and play it through the audio chain.
+ */
 export async function startMusic(params: LyriaParams): Promise<void> {
-  const genai = ensureClient();
-
-  // Ensure AudioContext is running (may be suspended due to autoplay policy)
   const ctx = getAudioContext();
   if (ctx.state === 'suspended') await ctx.resume();
 
-  nextPlayTime = 0;
-
-  const scale = KEY_TO_SCALE[params.scale] ?? Scale.C_MAJOR_A_MINOR;
-
-  session = await genai.live.music.connect({
-    model: 'models/lyria-realtime-exp',
-    callbacks: {
-      onmessage: (message: LiveMusicServerMessage) => {
-        if (message.serverContent?.audioChunks) {
-          for (const chunk of message.serverContent.audioChunks) {
-            if (chunk.data) playPcmChunk(chunk.data);
-          }
-        }
-      },
-      onerror: (error: unknown) => {
-        console.error('[Lyria] Error:', error);
-      },
-    },
+  // Call server API to generate music
+  const res = await fetch('/api/generate-music', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: params.stylePrompt,
+      model: 'clip',
+    }),
   });
 
-  await session.setWeightedPrompts({
-    weightedPrompts: [{ text: params.stylePrompt, weight: 1.0 }],
-  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || `Generate music failed: ${res.status}`);
+  }
 
-  await session.setMusicGenerationConfig({
-    musicGenerationConfig: {
-      bpm: params.bpm,
-      scale,
-      temperature: params.temperature,
-      density: params.density,
-      brightness: params.brightness,
-      guidance: params.guidance,
-    },
-  });
+  const data = await res.json();
+  if (!data.audioBase64) throw new Error('No audio in response');
 
-  await session.play();
+  console.log('[Lyria] Got audio, decoding...');
+
+  // Decode base64 MP3 to AudioBuffer
+  const binaryStr = atob(data.audioBase64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+
+  const audioBuffer = await ctx.decodeAudioData(bytes.buffer);
+
+  // Play through GainNode → AnalyserNode → destination
+  const gain = getGainNode();
+  const source = ctx.createBufferSource();
+  source.buffer = audioBuffer;
+  source.loop = true; // Loop the 30s clip
+  source.connect(gain);
+  source.start(0);
+
+  currentSource = source;
+  isCurrentlyPlaying = true;
+  console.log('[Lyria] Playing, duration:', audioBuffer.duration.toFixed(1), 's');
 }
 
-/** Stop music and close session */
+/** Stop music playback */
 export async function stopMusic(): Promise<void> {
-  if (session) {
+  if (currentSource) {
     try {
-      await session.close();
+      currentSource.stop();
+      currentSource.disconnect();
     } catch (e) {
-      console.warn('[Lyria] close error:', e);
+      console.warn('[Lyria] stop error:', e);
     }
-    session = null;
+    currentSource = null;
   }
-  nextPlayTime = 0;
+  isCurrentlyPlaying = false;
+}
+
+/** Check if music is currently playing */
+export function isMusicPlaying(): boolean {
+  return isCurrentlyPlaying;
 }

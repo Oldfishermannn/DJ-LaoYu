@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     ];
 
     const response = await genai.models.generateContent({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-2.5-flash',
       contents,
       config: { systemInstruction: systemPrompt },
     });
