@@ -235,21 +235,23 @@ export default function JamPage() {
       ws.onopen = () => {
         setWsConnected(true);
         setStatus('正在连接 Lyria...');
-        // Reuse AudioContext if it exists, only create on first connect
-        if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-          const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
-          const analyser = ctx.createAnalyser();
-          analyser.fftSize = 256;
-          analyser.connect(ctx.destination);
-          audioCtxRef.current = ctx;
-          analyserRef.current = analyser;
+        // Close old AudioContext to stop any lingering scheduled buffers
+        if (audioCtxRef.current) {
+          audioCtxRef.current.close().catch(() => {});
         }
+        audioQueueRef.current = [];
+        isPlayingRef.current = false;
+        const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.connect(ctx.destination);
+        audioCtxRef.current = ctx;
+        analyserRef.current = analyser;
         nextPlayTimeRef.current = 0;
         chunkCountRef.current = 0;
         setChunkCount(0);
-        if (!animFrameRef.current) {
-          animFrameRef.current = requestAnimationFrame(drawVisualizer);
-        }
+        if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = requestAnimationFrame(drawVisualizer);
       };
       ws.onmessage = (evt) => {
         const data = JSON.parse(evt.data);
