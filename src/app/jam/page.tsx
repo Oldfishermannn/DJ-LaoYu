@@ -136,7 +136,7 @@ export default function JamPage() {
   // ─── Audio playback with buffer queue ───
   const audioQueueRef = useRef<string[]>([]);
   const isPlayingRef = useRef(false);
-  const BUFFER_MIN = 3; // accumulate N chunks before starting playback
+  const BUFFER_MIN = 8; // accumulate N chunks before starting playback
 
   const drainQueue = useCallback(() => {
     const ctx = audioCtxRef.current;
@@ -167,7 +167,7 @@ export default function JamPage() {
       const now = ctx.currentTime;
       // If we've fallen behind, jump ahead with a small gap
       if (nextPlayTimeRef.current < now) {
-        nextPlayTimeRef.current = now + 0.02;
+        nextPlayTimeRef.current = now + 0.005;
       }
       source.start(nextPlayTimeRef.current);
       nextPlayTimeRef.current += buffer.duration;
