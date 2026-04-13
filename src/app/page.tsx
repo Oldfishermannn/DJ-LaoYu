@@ -84,7 +84,8 @@ prompts 是一个数组，支持多个 WeightedPrompt 混合叠加：
 - mute_drums: true/false，静音鼓
 - only_bass_and_drums: true/false，仅保留低音+鼓
 
-⚠️ 禁止输出 scale、music_generation_mode、seed 字段，会导致连接断开！
+⚠️ 禁止输出 scale 和 seed 字段，会导致连接断开！
+- music_generation_mode 可选："QUALITY"（默认高质量）/"DIVERSITY"（多样性）/"VOCALIZATION"（添加人声元素）。改变后需要 reset_context
 
 ## Action 值
 
