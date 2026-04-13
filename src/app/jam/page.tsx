@@ -336,6 +336,65 @@ export default function JamPage() {
     }
   };
 
+  // ─── Screen capture & analyze ───
+  const [screenPreview, setScreenPreview] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const handleScreenCapture = async () => {
+    if (isAnalyzing) return;
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const track = stream.getVideoTracks()[0];
+      const canvas = document.createElement('canvas');
+      const video = document.createElement('video');
+      video.srcObject = stream;
+      await video.play();
+
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(video, 0, 0);
+      track.stop();
+
+      const dataUrl = canvas.toDataURL('image/png');
+      const base64 = dataUrl.split(',')[1];
+      setScreenPreview(dataUrl);
+      setIsAnalyzing(true);
+
+      // Add user message with screenshot
+      setMessages(prev => [...prev, {
+        id: uid(), role: 'user', text: '[截屏分析] 根据我的桌面推荐音乐', time: Date.now(),
+      }]);
+
+      const res = await fetch('/api/analyze-screen', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageBase64: base64 }),
+      });
+
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+      const data = await res.json();
+      const rawText: string = data.text ?? '';
+      const { text: aiText, params } = parseResponse(rawText);
+
+      setMessages(prev => [...prev, {
+        id: uid(), role: 'ai', text: aiText, params, time: Date.now(),
+      }]);
+
+      if (params) applyLyriaUpdate(params);
+    } catch (err) {
+      if ((err as Error).name !== 'NotAllowedError') {
+        setMessages(prev => [...prev, {
+          id: uid(), role: 'system',
+          text: '截屏分析出错: ' + (err instanceof Error ? err.message : String(err)),
+          time: Date.now(),
+        }]);
+      }
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
+
   const quickActions = [
     '来段 Lofi 放松一下',
     '给我来个摇滚',
@@ -474,8 +533,25 @@ export default function JamPage() {
           <div ref={chatEndRef} />
         </div>
 
+        {/* Screenshot preview */}
+        {screenPreview && (
+          <div className="shrink-0 px-4 py-2 border-t border-[#1a1a2e]">
+            <div className="relative inline-block">
+              <img src={screenPreview} alt="截屏" className="rounded-lg max-h-[120px] opacity-70" />
+              <button onClick={() => setScreenPreview(null)}
+                className="absolute top-1 right-1 w-5 h-5 rounded-full text-xs cursor-pointer flex items-center justify-center"
+                style={{ background: '#333', color: '#aaa' }}>x</button>
+            </div>
+          </div>
+        )}
+
         {/* Quick actions */}
         <div className="shrink-0 px-4 py-2 flex gap-2 flex-wrap border-t border-[#1a1a2e]">
+          <button onClick={handleScreenCapture} disabled={isAnalyzing}
+            className="px-3 py-1 rounded-full text-xs cursor-pointer transition-colors disabled:opacity-40"
+            style={{ background: '#1a1a2e', border: '1px solid #e94560', color: '#e94560' }}>
+            {isAnalyzing ? '分析中...' : '截屏识别音乐'}
+          </button>
           {quickActions.map((q) => (
             <button key={q} onClick={() => { setInput(q); }}
               className="px-3 py-1 rounded-full text-xs cursor-pointer transition-colors hover:border-[#e94560]"
