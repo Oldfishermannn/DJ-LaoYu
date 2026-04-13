@@ -87,6 +87,11 @@ export default function JamPage() {
   const [currentPrompt, setCurrentPrompt] = useState('');
   const [currentBpm, setCurrentBpm] = useState(0);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [serverLogs, setServerLogs] = useState<string[]>([]);
+  const addLog = useCallback((msg: string) => {
+    const ts = new Date().toLocaleTimeString('zh-CN', { hour12: false });
+    setServerLogs(prev => [`[${ts}] ${msg}`, ...prev].slice(0, 50));
+  }, []);
 
   const wsRef = useRef<WebSocket | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
@@ -198,6 +203,7 @@ export default function JamPage() {
       ws.onopen = () => {
         setWsConnected(true);
         setStatus('正在连接 Lyria...');
+        addLog('WebSocket 已连接');
         const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
         const analyser = ctx.createAnalyser();
         analyser.fftSize = 256;
@@ -218,7 +224,7 @@ export default function JamPage() {
           playAudioChunk(data.data);
         } else if (data.type === 'status') {
           setStatus(data.message);
-          // "connected" = Lyria session is ready
+          addLog('状态: ' + data.message);
           if (data.message === 'connected' && !lyriaReadyRef.current) {
             lyriaReadyRef.current = true;
             lyriaReadyResolveRef.current?.();
@@ -226,16 +232,18 @@ export default function JamPage() {
           }
         } else if (data.type === 'error') {
           setStatus('错误: ' + data.message);
+          addLog('错误: ' + data.message);
         }
       };
-      ws.onerror = () => { setStatus('连接错误'); reject(new Error('WebSocket error')); };
+      ws.onerror = () => { setStatus('连接错误'); addLog('WebSocket 连接错误'); reject(new Error('WebSocket error')); };
       ws.onclose = () => {
         setWsConnected(false);
         wsRef.current = null;
         lyriaReadyRef.current = false;
-        // Auto-reconnect handled by effect
+        addLog(`断开 (chunks: ${chunkCountRef.current})`);
         if (autoReconnectRef.current && lastUpdateRef.current) {
           setStatus('重连中...');
+          addLog('准备自动重连...');
         } else {
           setStatus('已断开');
         }
@@ -250,14 +258,15 @@ export default function JamPage() {
         }
       }, 15000);
     });
-  }, [drawVisualizer, playAudioChunk]);
+  }, [drawVisualizer, playAudioChunk, addLog]);
 
   // ─── Send Lyria commands via WebSocket ───
   const sendWs = useCallback((data: Record<string, unknown>) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(data));
+      addLog('发送: ' + String(data.command));
     }
-  }, []);
+  }, [addLog]);
 
   // ─── Apply Lyria params from chat ───
   const applyLyriaUpdate = useCallback((update: LyriaUpdate) => {
@@ -532,8 +541,26 @@ export default function JamPage() {
           </button>
         </div>
 
+        {/* Server Log */}
+        <div className="mt-auto rounded-lg overflow-hidden" style={{ background: '#0d1117' }}>
+          <div className="px-3 py-2 text-xs font-semibold flex justify-between items-center" style={{ color: '#58a6ff' }}>
+            <span>Server Log</span>
+            <span style={{ color: '#484f58' }}>{serverLogs.length}</span>
+          </div>
+          <div className="px-3 pb-2 overflow-y-auto" style={{ maxHeight: 150 }}>
+            {serverLogs.length === 0 ? (
+              <div className="text-xs" style={{ color: '#484f58' }}>等待连接...</div>
+            ) : serverLogs.map((log, i) => (
+              <div key={i} className="text-xs leading-relaxed" style={{
+                color: log.includes('错误') ? '#f85149' : log.includes('断开') ? '#d29922' : '#8b949e',
+                fontFamily: 'monospace', fontSize: 10,
+              }}>{log}</div>
+            ))}
+          </div>
+        </div>
+
         {/* System Prompt */}
-        <div className="mt-auto rounded-lg overflow-hidden" style={{ background: '#16213e' }}>
+        <div className="rounded-lg overflow-hidden" style={{ background: '#16213e' }}>
           <button
             onClick={() => setShowPrompt(!showPrompt)}
             className="w-full px-3 py-2 text-left text-xs font-semibold cursor-pointer flex justify-between items-center"
