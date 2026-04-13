@@ -325,9 +325,12 @@ export default function JamPage() {
     }
 
     if (update.action) {
-      if (update.action === 'play' || update.action === 'update') {
+      if (update.action === 'play') {
         sendWs({ command: 'play' });
         setStatus('播放中');
+      } else if (update.action === 'update') {
+        // Already playing — just set_prompts/set_config is enough, Lyria transitions smoothly
+        setStatus('参数已更新');
       } else if (update.action === 'pause') {
         sendWs({ command: 'pause' });
         setStatus('已暂停');
