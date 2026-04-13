@@ -130,32 +130,56 @@ export default function JamPage() {
     animFrameRef.current = requestAnimationFrame(drawVisualizer);
   }, []);
 
-  // ─── Audio playback ───
+  // ─── Audio playback with buffer queue ───
+  const audioQueueRef = useRef<string[]>([]);
+  const isPlayingRef = useRef(false);
+  const BUFFER_MIN = 3; // accumulate N chunks before starting playback
+
+  const drainQueue = useCallback(() => {
+    const ctx = audioCtxRef.current;
+    if (!ctx || audioQueueRef.current.length === 0) {
+      isPlayingRef.current = false;
+      return;
+    }
+    isPlayingRef.current = true;
+
+    while (audioQueueRef.current.length > 0) {
+      const b64Data = audioQueueRef.current.shift()!;
+      const raw = atob(b64Data);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      const int16 = new Int16Array(bytes.buffer);
+      const numSamples = int16.length / CHANNELS;
+      if (numSamples === 0) continue;
+      const buffer = ctx.createBuffer(CHANNELS, numSamples, SAMPLE_RATE);
+      for (let ch = 0; ch < CHANNELS; ch++) {
+        const channelData = buffer.getChannelData(ch);
+        for (let i = 0; i < numSamples; i++) {
+          channelData[i] = int16[i * CHANNELS + ch] / 32768;
+        }
+      }
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(analyserRef.current!);
+      const now = ctx.currentTime;
+      // If we've fallen behind, jump ahead with a small gap
+      if (nextPlayTimeRef.current < now) {
+        nextPlayTimeRef.current = now + 0.02;
+      }
+      source.start(nextPlayTimeRef.current);
+      nextPlayTimeRef.current += buffer.duration;
+    }
+  }, []);
+
   const playAudioChunk = useCallback((b64Data: string) => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
-    const raw = atob(b64Data);
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-    const int16 = new Int16Array(bytes.buffer);
-    const numSamples = int16.length / CHANNELS;
-    if (numSamples === 0) return;
-    const buffer = ctx.createBuffer(CHANNELS, numSamples, SAMPLE_RATE);
-    for (let ch = 0; ch < CHANNELS; ch++) {
-      const channelData = buffer.getChannelData(ch);
-      for (let i = 0; i < numSamples; i++) {
-        channelData[i] = int16[i * CHANNELS + ch] / 32768;
-      }
-    }
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(analyserRef.current!);
-    const t = ctx.currentTime;
-    if (nextPlayTimeRef.current < t) nextPlayTimeRef.current = t + 0.05;
-    source.start(nextPlayTimeRef.current);
-    nextPlayTimeRef.current += buffer.duration;
-  }, []);
+    audioQueueRef.current.push(b64Data);
+    // Wait until we have enough chunks buffered before starting
+    if (!isPlayingRef.current && audioQueueRef.current.length < BUFFER_MIN) return;
+    drainQueue();
+  }, [drainQueue]);
 
   // ─── WebSocket connect (returns Promise that resolves when Lyria session is ready) ───
   const connectWs = useCallback((): Promise<void> => {
