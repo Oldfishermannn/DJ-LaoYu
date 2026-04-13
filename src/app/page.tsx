@@ -185,6 +185,7 @@ export default function JamPage() {
   const MIN_BUFFER = 2; // 最小缓冲深度
   const MAX_BUFFER = 10; // 最大缓冲深度
   const JITTER_WINDOW = 10; // 用最近 N 个间隔计算抖动
+  const hasStartedRef = useRef(false); // true after first playback — never re-buffer after that
 
   const decodeB64ToPCM = useCallback((b64Data: string): AudioBuffer | null => {
     const ctx = audioCtxRef.current;
@@ -275,13 +276,14 @@ export default function JamPage() {
 
     audioQueueRef.current.push(buffer);
 
-    // 决定是否开始播放：
-    // - 轮转后：用 INITIAL_BUFFER 预缓冲
-    // - 正常播放中：立即 drain（已有足够 scheduled ahead）
-    // - 首次启动：用自适应 bufferDepth
-    if (!isPlayingRef.current) {
+    // 播放决策：
+    // - 首次启动 / 轮转后：预缓冲 N 个 chunk 再开始
+    // - 已经播放过：来一个立即 schedule，靠已有的 scheduled-ahead 音频扛抖动
+    if (!hasStartedRef.current) {
+      // 首次：预缓冲
       const target = isRotatingRef.current ? INITIAL_BUFFER : bufferDepthRef.current;
       if (audioQueueRef.current.length < target) return;
+      hasStartedRef.current = true;
     }
     scheduleBuffers();
   }, [decodeB64ToPCM, updateBufferDepth, scheduleBuffers]);
@@ -308,6 +310,7 @@ export default function JamPage() {
         chunkArrivalTimesRef.current = [];
         bufferDepthRef.current = INITIAL_BUFFER;
         isPlayingRef.current = false;
+        hasStartedRef.current = false;
         isRotatingRef.current = false;
         const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
         const gain = ctx.createGain();
@@ -347,6 +350,7 @@ export default function JamPage() {
             chunkArrivalTimesRef.current = [];
             bufferDepthRef.current = INITIAL_BUFFER;
             isPlayingRef.current = false;
+            hasStartedRef.current = false; // re-enable pre-buffering for new session
             isRotatingRef.current = true; // will pre-buffer and fade in
             if (audioCtxRef.current) {
               nextPlayTimeRef.current = audioCtxRef.current.currentTime + 0.3;
