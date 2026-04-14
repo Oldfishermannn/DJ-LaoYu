@@ -1,0 +1,13 @@
+services:
+  - type: web
+    runtime: python
+    name: dj-cyber-lyria
+    region: singapore
+    plan: free
+    buildCommand: pip install google-genai aiohttp
+    startCommand: python -u server.py
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: PORT
+        value: 10000

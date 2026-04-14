@@ -32,7 +32,7 @@ _load_env_local()
 # ─── 配置 ───
 API_KEY = os.environ.get("GEMINI_API_KEY", "")
 MODEL = "models/lyria-realtime-exp"
-PORT = 8765
+PORT = int(os.environ.get("PORT", "8765"))
 
 # ─── 工具函数 ───
 MODE_MAP = {
