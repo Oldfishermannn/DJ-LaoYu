@@ -644,14 +644,69 @@ export default function JamPage() {
     }
   }, [wsConnected, connectWs, applyLyriaUpdate]);
 
+  // ─── Background playback: keep AudioContext alive + MediaSession ───
   useEffect(() => {
+    // MediaSession: show playback info on lock screen / notification
+    if ('mediaSession' in navigator) {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: 'DJ Cyber',
+        artist: 'Lyria RealTime',
+        album: 'AI Music',
+      });
+      navigator.mediaSession.setActionHandler('play', () => {
+        audioCtxRef.current?.resume();
+        sendWs({ command: 'play' });
+      });
+      navigator.mediaSession.setActionHandler('pause', () => {
+        sendWs({ command: 'pause' });
+      });
+    }
+
+    // Keep AudioContext alive in background with a silent oscillator
+    let keepAliveOsc: OscillatorNode | null = null;
+    const startKeepAlive = () => {
+      const ctx = audioCtxRef.current;
+      if (!ctx || keepAliveOsc) return;
+      const osc = ctx.createOscillator();
+      const silentGain = ctx.createGain();
+      silentGain.gain.value = 0; // completely silent
+      osc.connect(silentGain);
+      silentGain.connect(ctx.destination);
+      osc.start();
+      keepAliveOsc = osc;
+    };
+
+    // Resume audio when returning to foreground
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        const ctx = audioCtxRef.current;
+        if (ctx?.state === 'suspended') {
+          ctx.resume();
+        }
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
+    // Start keep-alive when audio context exists
+    const interval = setInterval(() => {
+      if (audioCtxRef.current && !keepAliveOsc) {
+        startKeepAlive();
+        if ('mediaSession' in navigator) {
+          navigator.mediaSession.playbackState = 'playing';
+        }
+      }
+    }, 1000);
+
     return () => {
       autoReconnectRef.current = false;
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      if (keepAliveOsc) { keepAliveOsc.stop(); keepAliveOsc = null; }
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(interval);
       wsRef.current?.close();
     };
-  }, []);
+  }, [sendWs]);
 
   const [showPanel, setShowPanel] = useState(false);
 
