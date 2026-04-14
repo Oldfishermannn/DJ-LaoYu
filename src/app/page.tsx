@@ -6,7 +6,6 @@ import { SIMONE_SYSTEM_PROMPT } from './simone-prompt';
 import AmbientBackground from './components/AmbientBackground';
 // GenreCards removed — replaced by ElementPool as primary UI
 import MiniPlayer from './components/MiniPlayer';
-import TunePanel from './components/TunePanel';
 import ChatBubbles from './components/ChatBubbles';
 import ElementPool from './components/ElementPool';
 import { buildPromptsFromPool, inferGenreFromPool, getElementById } from './pool-elements';
@@ -59,9 +58,7 @@ export default function SimonePage() {
 
   // ─── Genre & Tag State ───
   const [genre, setGenre] = useState('default');
-  const [showTune, setShowTune] = useState(false);
   const [poolElements, setPoolElements] = useState<string[]>([]);
-  const [tuneValues, setTuneValues] = useState({ temperature: 1.3, guidance_weight: 5.0 });
   const poolDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -391,13 +388,8 @@ export default function SimonePage() {
     }
 
     if (update.config && Object.keys(update.config).length > 0) {
-      // Sync tune panel values from AI response (Magenta RT params only)
-      const c = update.config as Record<string, number>;
-      setTuneValues(prev => ({
-        temperature: c.temperature ?? prev.temperature,
-        guidance_weight: c.guidance_weight ?? prev.guidance_weight,
-      }));
       // Only send supported Magenta RT params
+      const c = update.config as Record<string, number>;
       const magentaConfig: Record<string, number> = {};
       if (c.temperature != null) magentaConfig.temperature = c.temperature;
       if (c.guidance_weight != null) magentaConfig.guidance_weight = c.guidance_weight;
@@ -538,17 +530,6 @@ export default function SimonePage() {
     }
   }, [sendWs, status]);
 
-  // ─── Tune panel: direct config update (Magenta RT) ───
-  const handleTuneUpdate = useCallback((config: Record<string, unknown>) => {
-    setTuneValues(prev => ({ ...prev, ...config }));
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      sendWs({ command: 'set_config', config });
-      if (lastUpdateRef.current) {
-        lastUpdateRef.current = { ...lastUpdateRef.current, config: { ...lastUpdateRef.current.config, ...config } };
-      }
-    }
-  }, [sendWs]);
-
   // ─── Element Pool: toggle element and send blended prompts ───
   const handlePoolToggle = useCallback((id: string) => {
     setPoolElements(prev => {
@@ -599,60 +580,6 @@ export default function SimonePage() {
   }, [sendWs, connectWs, status]);
 
   // ─── Shuffle: same genre, new variation ───
-  const handleShuffle = useCallback(() => {
-    if (!lastUpdateRef.current) return;
-    const currentGenre = genre === 'default' ? '来点音乐' : `继续 ${genre} 风格，但换一首不一样的`;
-    // Send as a chat message to Simone
-    setInput('');
-    setIsLoading(true);
-    const userMsg: Message = { id: uid(), role: 'user', text: currentGenre, time: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
-
-    const history = historyRef.current;
-    fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemPrompt: SIMONE_SYSTEM_PROMPT,
-        history,
-        userMessage: currentGenre,
-      }),
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`API error ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        const rawText: string = data.text ?? '';
-        const { text: aiText, params } = parseResponse(rawText);
-        const aiMsg: Message = { id: uid(), role: 'ai', text: aiText, params, time: Date.now() };
-        setMessages(prev => [...prev, aiMsg]);
-        historyRef.current = [
-          ...history,
-          { role: 'user' as const, parts: [{ text: currentGenre }] },
-          { role: 'model' as const, parts: [{ text: rawText }] },
-        ].slice(-20);
-        if (params) {
-          if ((params as Record<string, unknown>).genre) {
-            setGenre((params as Record<string, unknown>).genre as string);
-          }
-          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !lyriaReadyRef.current) {
-            connectWs().then(() => applyLyriaUpdate(params)).catch(() => {});
-          } else {
-            applyLyriaUpdate(params);
-          }
-        }
-      })
-      .catch(err => {
-        setMessages(prev => [...prev, {
-          id: uid(), role: 'system',
-          text: '连接出错: ' + (err instanceof Error ? err.message : String(err)),
-          time: Date.now(),
-        }]);
-      })
-      .finally(() => setIsLoading(false));
-  }, [genre, connectWs, applyLyriaUpdate]);
-
   // ─── Auto-reconnect when Lyria session times out ───
   useEffect(() => {
     if (!wsConnected && autoReconnectRef.current && lastUpdateRef.current) {
@@ -809,30 +736,6 @@ export default function SimonePage() {
             genre={genre}
             analyser={analyserRef.current}
             onTogglePlay={handleTogglePlay}
-          />
-          {/* Tune toggle */}
-          {(wsConnected || genre !== 'default') && (
-            <div className="flex justify-center -mt-1 mb-1">
-              <button
-                onClick={() => setShowTune(v => !v)}
-                className="text-[10px] text-white/30 hover:text-white/60 transition-all duration-300 flex items-center gap-1"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                     className={`transition-transform duration-300 ${showTune ? 'rotate-180' : ''}`}>
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-                {showTune ? '收起微调' : '微调'}
-              </button>
-            </div>
-          )}
-          <TunePanel
-            temperature={tuneValues.temperature}
-            guidance_weight={tuneValues.guidance_weight}
-            onUpdate={handleTuneUpdate}
-            onShuffle={handleShuffle}
-            visible={showTune}
           />
         </div>
 
