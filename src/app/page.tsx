@@ -9,7 +9,7 @@ import MiniPlayer from './components/MiniPlayer';
 import TunePanel from './components/TunePanel';
 import ChatBubbles from './components/ChatBubbles';
 import ElementPool from './components/ElementPool';
-import { buildPromptsFromPool, inferGenreFromPool } from './pool-elements';
+import { buildPromptsFromPool, inferGenreFromPool, getElementById } from './pool-elements';
 
 // ─── Types ───
 interface Message {
@@ -552,7 +552,18 @@ export default function SimonePage() {
   // ─── Element Pool: toggle element and send blended prompts ───
   const handlePoolToggle = useCallback((id: string) => {
     setPoolElements(prev => {
-      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      const el = getElementById(id);
+      let next: string[];
+      if (prev.includes(id)) {
+        // Remove
+        next = prev.filter(x => x !== id);
+      } else {
+        // Add — but remove any other element in the same category (同类互斥)
+        const cat = el?.category;
+        next = cat
+          ? [...prev.filter(x => getElementById(x)?.category !== cat), id]
+          : [...prev, id];
+      }
       // Debounce: send after 500ms of no changes
       if (poolDebounceRef.current) clearTimeout(poolDebounceRef.current);
       poolDebounceRef.current = setTimeout(() => {
