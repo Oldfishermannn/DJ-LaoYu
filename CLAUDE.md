@@ -1,41 +1,42 @@
 @AGENTS.md
 
-# Cyber Band - 赛博乐队模拟器
+# Simone - AI Music Companion
 
 ## 项目概述
 
-和赛博乐手聊天编曲，用 Google Lyria RealTime 生成音乐，导出真实可演奏的 lead sheet。
+Simone 是一个温柔知性的音乐陪伴 Agent。用户跟她聊天，她用 Google Lyria RealTime 实时生成适合当下氛围的器乐音乐。适用于学习、开车、派对、居家等场景。
 
 ## 技术栈
 
 - Next.js 16 (App Router) + TypeScript + Tailwind CSS 4
-- @google/genai: Gemini 2.0 Flash (对话 + 谱子) + Lyria RealTime (音乐)
-- Canvas 2D: 舞台渲染 + 精灵图动画
+- Claude Sonnet (对话 AI)
+- Google Lyria RealTime (实时音乐生成，通过 Python WS 桥接)
 - Web Audio API: PCM16 播放 + AnalyserNode 频谱分析
+- PWA: 可添加到主屏幕
 
 ## 环境配置
 
 ```bash
 cp .env.local.example .env.local
-# 填入 NEXT_PUBLIC_GEMINI_API_KEY
+# 填入 ANTHROPIC_API_KEY 和 NEXT_PUBLIC_WS_URL
 npm install
 npm run dev
 ```
 
 ## 架构
 
-三层分离：
-- **视觉层** (`src/canvas/`): Canvas 舞台、精灵图、灯光、节拍同步
-- **对话层** (`src/ai/`): 角色 prompt、参数提取、谱子生成
-- **音频层** (`src/audio/`): Lyria RealTime 引擎、共享 AudioContext
+- **前端**: Next.js，全屏氛围背景 + 聊天界面 + 迷你播放器
+- **对话 API**: `/api/chat` → Claude Sonnet
+- **音乐**: 浏览器 WS → Python 桥接服务 → Lyria RealTime API
+- **部署**: Vercel (前端) + Render.com (WS 桥接)
 
 ## 关键路径
 
-- `src/app/page.tsx` — 主页面，状态管理中心
-- `src/app/api/chat/route.ts` — Gemini 对话 API
-- `src/app/api/generate-sheet/route.ts` — 谱子生成 API
-- `src/audio/lyria-engine.ts` — Lyria RealTime 连接
-- `src/canvas/stage-renderer.ts` — Canvas 渲染循环
+- `src/app/page.tsx` — 主页面，状态管理 + 音频引擎 + UI
+- `src/app/simone-prompt.ts` — Simone 人设 system prompt
+- `src/app/api/chat/route.ts` — Claude 对话 API
+- `src/app/components/` — UI 组件（背景、聊天、播放器、风格卡片）
+- `server.py` — Python WS 桥接服务（Lyria RealTime）
 
 ## 命令
 

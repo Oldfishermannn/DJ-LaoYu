@@ -2,8 +2,14 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'DJ Cyber - AI 实时音乐',
-  description: 'Chat with DJ Cyber, generate real-time music with Google Lyria',
+  title: 'Simone - AI Music Companion',
+  description: '你的音乐陪伴，随时随地',
+  manifest: '/manifest.json',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Simone',
+  },
 };
 
 export const viewport = {
@@ -11,12 +17,16 @@ export const viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  themeColor: '#1a1a2e',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh">
-      <body className="min-h-screen bg-[var(--stage-bg)]">{children}</body>
+      <head>
+        <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }

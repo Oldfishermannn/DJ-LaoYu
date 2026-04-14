@@ -1,7 +1,7 @@
 {
-  "name": "cyber-band",
-  "version": "1.0.0",
-  "description": "",
+  "name": "simone",
+  "version": "2.0.0",
+  "description": "Simone - AI Music Companion",
   "main": "index.js",
   "scripts": {
     "dev": "next dev",

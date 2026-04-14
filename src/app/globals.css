@@ -1,15 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --neon-pink: #ff00ff;
-  --neon-cyan: #00ffff;
-  --stage-bg: #0a0a1a;
-  --panel-bg: #111118;
-  --blaze: #ff6b6b;
-  --groove: #4ecdc4;
-  --nova: #ffe66d;
-  --riff: #a8e6cf;
-  --echo: #dda0dd;
+  --simone-bg: #1a1a2e;
+  --simone-surface: rgba(26, 26, 46, 0.85);
+  --simone-accent: #e94560;
+  --simone-text: #e0e0e0;
+  --simone-text-muted: #888;
 }
 
-body { background: var(--stage-bg); color: #e0e0e0; }
+* { box-sizing: border-box; }
+
+body {
+  background: var(--simone-bg);
+  color: var(--simone-text);
+  margin: 0;
+  overflow: hidden;
+}
