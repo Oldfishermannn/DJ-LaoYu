@@ -4,9 +4,15 @@ import Observation
 @Observable
 final class AppState {
     // Selection
-    var selectedScene: Scene? = nil
-    var selectedStyle: MusicStyle? = nil
+    var selectedStyle: MoodStyle? = nil
     var selectedVisualizer: VisualizerStyle = .aurora
+
+    // Explore
+    var exploredStyles: [MoodStyle] = []
+    var exploredIndex: Int = 0
+
+    // Pinned (persisted)
+    var pinnedStyles: [MoodStyle] = []
 
     // Playback
     var isGenerating = false
@@ -32,7 +38,18 @@ final class AppState {
     let audioEngine = AudioEngine()
     let lyriaClient = LyriaClient()
 
+    private let pinnedKey = "pinnedStyles"
+
     init() {
+        // Load pinned styles from UserDefaults
+        if let data = UserDefaults.standard.data(forKey: pinnedKey),
+           let decoded = try? JSONDecoder().decode([MoodStyle].self, from: data) {
+            pinnedStyles = decoded
+        }
+
+        // Populate initial exploration list
+        exploredStyles = MoodStyle.randomSelection(count: 5, excluding: [])
+
         lyriaClient.onAudioChunk = { [weak self] data in
             self?.audioEngine.handleAudioChunk(data)
         }
@@ -55,21 +72,8 @@ final class AppState {
 
     // MARK: - Actions
 
-    func selectScene(_ scene: Scene) {
-        if selectedScene == scene {
-            selectedScene = nil
-        } else {
-            selectedScene = scene
-        }
-        applySelection()
-    }
-
-    func selectStyle(_ style: MusicStyle) {
-        if selectedStyle == style {
-            selectedStyle = nil
-        } else {
-            selectedStyle = style
-        }
+    func selectStyle(_ style: MoodStyle) {
+        selectedStyle = style
         applySelection()
     }
 
@@ -91,10 +95,38 @@ final class AppState {
         sendCurrentPrompts()
     }
 
+    // MARK: - Pin / Unpin
+
+    func pinStyle(_ style: MoodStyle) {
+        guard !pinnedStyles.contains(where: { $0.id == style.id }) else { return }
+        pinnedStyles.append(style)
+        savePinnedStyles()
+    }
+
+    func unpinStyle(_ style: MoodStyle) {
+        pinnedStyles.removeAll { $0.id == style.id }
+        savePinnedStyles()
+    }
+
+    // MARK: - Explore
+
+    func exploreMore() {
+        let excludedIDs = exploredStyles.map(\.id)
+        let newStyles = MoodStyle.randomSelection(count: 4, excluding: excludedIDs)
+        exploredStyles.append(contentsOf: newStyles)
+    }
+
     // MARK: - Private
 
+    private func savePinnedStyles() {
+        if let data = try? JSONEncoder().encode(pinnedStyles) {
+            UserDefaults.standard.set(data, forKey: pinnedKey)
+        }
+    }
+
     private func applySelection() {
-        let prompts = PromptBuilder.build(scene: selectedScene, style: selectedStyle)
+        guard let style = selectedStyle else { return }
+        let prompts = PromptBuilder.build(style: style)
         guard !prompts.isEmpty else { return }
 
         if lyriaClient.connectionState == .disconnected {
@@ -107,14 +139,15 @@ final class AppState {
         }
         #if os(iOS)
         audioEngine.updateNowPlaying(
-            scene: selectedScene?.label ?? "Simone",
-            style: selectedStyle?.label
+            scene: "Simone",
+            style: style.name
         )
         #endif
     }
 
     private func sendCurrentPrompts() {
-        let prompts = PromptBuilder.build(scene: selectedScene, style: selectedStyle)
+        guard let style = selectedStyle else { return }
+        let prompts = PromptBuilder.build(style: style)
         guard !prompts.isEmpty else { return }
         lyriaClient.sendPrompts(prompts)
         lyriaClient.sendCommand("play")

@@ -6,15 +6,8 @@ struct WeightedPrompt: Codable {
 }
 
 enum PromptBuilder {
-    static func build(scene: Scene?, style: MusicStyle?) -> [WeightedPrompt] {
-        var prompts: [WeightedPrompt] = []
-        if let style {
-            prompts.append(WeightedPrompt(text: style.prompt, weight: style.promptWeight))
-        }
-        if let scene {
-            prompts.append(WeightedPrompt(text: scene.prompt, weight: scene.promptWeight))
-        }
-        return prompts
+    static func build(style: MoodStyle) -> [WeightedPrompt] {
+        [WeightedPrompt(text: style.prompt, weight: style.promptWeight)]
     }
 
     static func toJSON(prompts: [WeightedPrompt]) -> Data {
