@@ -55,19 +55,20 @@ def chunk_to_msg(c):
     ratio = len(opus_data) / raw_size * 100
     print(f'[opus] {raw_size // 1024}KB -> {len(opus_data) // 1024}KB ({ratio:.0f}%) -> {len(b64) // 1024}KB b64')
     return json.dumps({'type': 'audio', 'data': b64, 'enc': 'opus'})
+_loop = asyncio.get_event_loop()
 async def handle(ws):
     playing = False
     style = None
     gs = None
     gt = None
-    gen_queue = asyncio.Queue(maxsize=6)
+    gen_queue = asyncio.Queue(maxsize=2)
     async def generator():
         nonlocal gs, playing, style
         while playing:
             try:
                 s = style if style is not None else get_style('chill ambient music with soft piano')
                 t0 = time.time()
-                c, gs2 = mrt.generate_chunk(state=gs, style=s)
+                c, gs2 = await _loop.run_in_executor(None, lambda st=gs, sty=s: mrt.generate_chunk(state=st, style=sty))
                 gs = gs2
                 gen_time = time.time() - t0
                 if not playing:

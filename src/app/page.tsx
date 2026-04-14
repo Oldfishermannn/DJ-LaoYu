@@ -80,12 +80,13 @@ export default function SimonePage() {
   // 核心思路：像 VoIP/WebRTC 一样，根据 chunk 到达间隔的抖动动态调整缓冲深度
   // Lyria chunk 到达间隔极不稳定（1-8s），固定 BUFFER_MIN 无法应对
   const audioQueueRef = useRef<AudioBuffer[]>([]);
+  const scheduledSourcesRef = useRef<AudioBufferSourceNode[]>([]); // track scheduled sources for cancellation
   const isPlayingRef = useRef(false);
   const chunkArrivalTimesRef = useRef<number[]>([]); // 记录最近 N 个 chunk 到达时间
-  const bufferDepthRef = useRef(4); // 初始缓冲深度（chunk 数），会动态调整
-  const INITIAL_BUFFER = 4; // 初始预缓冲（Magenta RT chunk=2s，4个=8s缓冲）
-  const MIN_BUFFER = 2; // 最小缓冲深度
-  const MAX_BUFFER = 8; // 最大缓冲深度
+  const bufferDepthRef = useRef(2); // 初始缓冲深度（chunk 数），会动态调整
+  const INITIAL_BUFFER = 2; // 初始预缓冲（Magenta RT chunk=2s，2个=4s缓冲）
+  const MIN_BUFFER = 1; // 最小缓冲深度
+  const MAX_BUFFER = 4; // 最大缓冲深度
   const JITTER_WINDOW = 10; // 用最近 N 个间隔计算抖动
   const hasStartedRef = useRef(false); // true after first playback — never re-buffer after that
 
@@ -184,6 +185,10 @@ export default function SimonePage() {
       source.connect(destination);
       source.start(nextPlayTimeRef.current);
       nextPlayTimeRef.current += buffer.duration;
+      scheduledSourcesRef.current.push(source);
+      source.onended = () => {
+        scheduledSourcesRef.current = scheduledSourcesRef.current.filter(s => s !== source);
+      };
     }
   }, []);
 
@@ -275,7 +280,16 @@ export default function SimonePage() {
         if (data.type === 'audio') {
           chunkCountRef.current++;
           setChunkCount(chunkCountRef.current);
-          if (data.enc === 'dgz') {
+          if (data.enc === 'opus') {
+            // Opus/OGG compressed audio — decode via Web Audio API
+            const binary = Uint8Array.from(atob(data.data), c => c.charCodeAt(0));
+            const ctx = audioCtxRef.current;
+            if (ctx) {
+              ctx.decodeAudioData(binary.buffer.slice(0)).then(buf => {
+                playAudioChunk(buf);
+              }).catch(err => console.error('Opus decode error:', err));
+            }
+          } else if (data.enc === 'dgz') {
             // Delta+Gzip compressed audio
             const buf = decodeDgzToPCM(data.data);
             if (buf) playAudioChunk(buf);
@@ -363,6 +377,16 @@ export default function SimonePage() {
     if (update.prompts && update.prompts.length > 0) {
       sendWs({ command: 'set_prompts', prompts: update.prompts });
       setCurrentPrompts(update.prompts);
+      // Cancel all scheduled audio so new style plays immediately
+      for (const src of scheduledSourcesRef.current) {
+        try { src.stop(); } catch (_) { /* already stopped */ }
+      }
+      scheduledSourcesRef.current = [];
+      audioQueueRef.current = [];
+      hasStartedRef.current = false;
+      if (audioCtxRef.current) {
+        nextPlayTimeRef.current = audioCtxRef.current.currentTime;
+      }
     }
 
     if (update.config && Object.keys(update.config).length > 0) {
