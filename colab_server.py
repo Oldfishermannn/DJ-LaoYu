@@ -4,7 +4,7 @@ import tensorflow as tf
 gpus = tf.config.list_physical_devices('GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
-import subprocess, asyncio, json, base64, re, time
+import subprocess, asyncio, json, base64, gzip, re, time
 import numpy as np
 subprocess.run(['wget', '-q', 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64', '-O', '/usr/local/bin/cloudflared'], check=True)
 subprocess.run(['chmod', '+x', '/usr/local/bin/cloudflared'], check=True)
@@ -31,7 +31,13 @@ def blend_styles(ps):
     return (w[:,np.newaxis]*np.stack(ss)).mean(axis=0)
 def chunk_to_msg(c):
     int16 = np.clip(c.samples.flatten() * 32767, -32768, 32767).astype(np.int16)
-    return json.dumps({'type':'audio','data':base64.b64encode(int16.tobytes()).decode('ascii')})
+    # Delta encode: store differences between consecutive samples (wraps int16, undone on client)
+    deltas = np.diff(int16, prepend=np.int16(0))
+    compressed = gzip.compress(deltas.astype(np.int16).tobytes(), compresslevel=1)
+    b64 = base64.b64encode(compressed).decode('ascii')
+    ratio = len(compressed) / len(int16.tobytes()) * 100
+    print(f'[compress] {len(int16.tobytes())//1024}KB -> {len(compressed)//1024}KB ({ratio:.0f}%) -> {len(b64)//1024}KB b64')
+    return json.dumps({'type':'audio','data':b64,'enc':'dgz'})
 async def handle(ws):
     playing=False; style=None; gs=None; gt=None
     gen_queue = asyncio.Queue(maxsize=6)

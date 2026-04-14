@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
+import pako from 'pako';
 import { SIMONE_SYSTEM_PROMPT } from './simone-prompt';
 import AmbientBackground from './components/AmbientBackground';
 import GenreCards from './components/GenreCards';
@@ -88,10 +89,9 @@ export default function SimonePage() {
   const JITTER_WINDOW = 10; // 用最近 N 个间隔计算抖动
   const hasStartedRef = useRef(false); // true after first playback — never re-buffer after that
 
-  const decodeBinaryToPCM = useCallback((data: ArrayBuffer): AudioBuffer | null => {
+  const int16ToAudioBuffer = useCallback((int16: Int16Array): AudioBuffer | null => {
     const ctx = audioCtxRef.current;
     if (!ctx) return null;
-    const int16 = new Int16Array(data);
     const numSamples = int16.length / CHANNELS;
     if (numSamples === 0) return null;
     const buffer = ctx.createBuffer(CHANNELS, numSamples, SAMPLE_RATE);
@@ -103,6 +103,23 @@ export default function SimonePage() {
     }
     return buffer;
   }, []);
+
+  // Delta+Gzip compressed decode
+  const decodeDgzToPCM = useCallback((b64Data: string): AudioBuffer | null => {
+    const compressed = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+    const decompressed = pako.inflate(compressed);
+    const deltas = new Int16Array(decompressed.buffer);
+    // Undo delta encoding (cumulative sum with int16 wrapping)
+    for (let i = 1; i < deltas.length; i++) {
+      deltas[i] = (deltas[i] + deltas[i - 1]) & 0xFFFF;
+      if (deltas[i] > 32767) deltas[i] -= 65536;
+    }
+    return int16ToAudioBuffer(deltas);
+  }, [int16ToAudioBuffer]);
+
+  const decodeBinaryToPCM = useCallback((data: ArrayBuffer): AudioBuffer | null => {
+    return int16ToAudioBuffer(new Int16Array(data));
+  }, [int16ToAudioBuffer]);
 
   // Legacy base64 fallback
   const decodeB64ToPCM = useCallback((b64Data: string): AudioBuffer | null => {
@@ -170,14 +187,19 @@ export default function SimonePage() {
     }
   }, []);
 
-  const playAudioChunk = useCallback((data: string | ArrayBuffer) => {
+  const playAudioChunk = useCallback((data: string | ArrayBuffer | AudioBuffer) => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
 
-    const buffer = data instanceof ArrayBuffer
-      ? decodeBinaryToPCM(data)
-      : decodeB64ToPCM(data);
+    let buffer: AudioBuffer | null;
+    if (data instanceof AudioBuffer) {
+      buffer = data;
+    } else if (data instanceof ArrayBuffer) {
+      buffer = decodeBinaryToPCM(data);
+    } else {
+      buffer = decodeB64ToPCM(data);
+    }
     if (!buffer) return;
 
     // 记录到达时间用于 jitter 计算
@@ -253,7 +275,13 @@ export default function SimonePage() {
         if (data.type === 'audio') {
           chunkCountRef.current++;
           setChunkCount(chunkCountRef.current);
-          playAudioChunk(data.data);
+          if (data.enc === 'dgz') {
+            // Delta+Gzip compressed audio
+            const buf = decodeDgzToPCM(data.data);
+            if (buf) playAudioChunk(buf);
+          } else {
+            playAudioChunk(data.data);
+          }
         } else if (data.type === 'status') {
           if (data.message === 'reconnecting') {
             // Server is rotating Lyria session — fade out, pre-buffer, then fade in
