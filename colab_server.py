@@ -4,8 +4,9 @@ import tensorflow as tf
 gpus = tf.config.list_physical_devices('GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
-import subprocess, asyncio, json, base64, re, time
+import subprocess, asyncio, json, base64, re, time, threading
 import numpy as np
+from concurrent.futures import ThreadPoolExecutor
 subprocess.run(['fuser', '-k', '8765/tcp'], capture_output=True)
 subprocess.run(['pkill', '-f', 'cloudflared'], capture_output=True)
 time.sleep(0.5)
@@ -24,6 +25,10 @@ if 'mrt' not in dir() or mrt is None:
     print(f'Warmup done. Chunk shape: {c0.samples.shape}')
 else:
     print('Model already loaded, skipping warmup.')
+
+# Single-thread executor: keeps TF/JAX on one thread but doesn't block event loop
+_executor = ThreadPoolExecutor(max_workers=1)
+
 style_cache = {}
 def get_style(t):
     if t not in style_cache:
@@ -38,67 +43,55 @@ def blend_styles(ps):
     w = np.array([p.get('weight', 1.0) for p in ps])
     w = w / w.sum()
     return (w[:, np.newaxis] * np.stack(ss)).mean(axis=0)
-def chunk_to_msg(c):
-    int16 = np.clip(c.samples.flatten() * 32767, -32768, 32767).astype(np.int16)
-    raw_size = len(int16.tobytes())
+def encode_opus(int16_bytes):
     proc = subprocess.run(
         ['ffmpeg', '-y', '-f', 's16le', '-ar', '48000', '-ac', '2', '-i', 'pipe:0',
          '-c:a', 'libopus', '-b:a', '128k', '-vbr', 'on', '-f', 'ogg', 'pipe:1'],
-        input=int16.tobytes(), capture_output=True
+        input=int16_bytes, capture_output=True
     )
     if proc.returncode != 0:
-        print(f'[ffmpeg error] {proc.stderr.decode()[-200:]}')
-        b64 = base64.b64encode(int16.tobytes()).decode('ascii')
-        return json.dumps({'type': 'audio', 'data': b64})
-    opus_data = proc.stdout
-    b64 = base64.b64encode(opus_data).decode('ascii')
-    ratio = len(opus_data) / raw_size * 100
-    print(f'[opus] {raw_size // 1024}KB -> {len(opus_data) // 1024}KB ({ratio:.0f}%) -> {len(b64) // 1024}KB b64')
-    return json.dumps({'type': 'audio', 'data': b64, 'enc': 'opus'})
+        return None
+    return proc.stdout
+def gen_one_chunk(gs, s):
+    """Run in thread — blocking but doesn't hold event loop."""
+    t0 = time.time()
+    c, gs2 = mrt.generate_chunk(state=gs, style=s)
+    gen_time = time.time() - t0
+    int16 = np.clip(c.samples.flatten() * 32767, -32768, 32767).astype(np.int16)
+    raw_bytes = int16.tobytes()
+    opus_data = encode_opus(raw_bytes)
+    if opus_data is None:
+        b64 = base64.b64encode(raw_bytes).decode('ascii')
+        msg = json.dumps({'type': 'audio', 'data': b64})
+    else:
+        b64 = base64.b64encode(opus_data).decode('ascii')
+        ratio = len(opus_data) / len(raw_bytes) * 100
+        print(f'[opus] {len(raw_bytes)//1024}KB -> {len(opus_data)//1024}KB ({ratio:.0f}%)')
+        msg = json.dumps({'type': 'audio', 'data': b64, 'enc': 'opus'})
+    print(f'[gen] {gen_time:.2f}s')
+    return msg, gs2
 async def handle(ws):
     playing = False
     style = None
     gs = None
     gt = None
-    gen_queue = asyncio.Queue(maxsize=1)
-    async def generator():
+    loop = asyncio.get_event_loop()
+    async def gen_and_send():
         nonlocal gs, playing, style
         while playing:
             try:
                 s = style if style is not None else get_style('chill ambient music with soft piano')
-                t0 = time.time()
-                c, gs2 = mrt.generate_chunk(state=gs, style=s)
+                msg, gs2 = await loop.run_in_executor(_executor, gen_one_chunk, gs, s)
                 gs = gs2
-                gen_time = time.time() - t0
                 if not playing:
                     break
-                msg = chunk_to_msg(c)
-                await gen_queue.put(msg)
-                print(f'[gen] {gen_time:.2f}s -> queue={gen_queue.qsize()}')
+                await ws.send(msg)
+                print(f'[sent] queue direct')
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                await gen_queue.put(e)
-                break
-    async def sender():
-        while playing:
-            try:
-                item = await asyncio.wait_for(gen_queue.get(), timeout=10)
-                if isinstance(item, Exception):
-                    await ws.send(json.dumps({'type': 'error', 'message': str(item)}))
-                    break
-                if not playing:
-                    break
-                t0 = time.time()
-                await ws.send(item)
-                send_time = time.time() - t0
-                print(f'[send] {send_time:.2f}s')
-            except asyncio.TimeoutError:
-                continue
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                print(f'[send error] {e}')
+                print(f'[error] {e}')
+                await ws.send(json.dumps({'type': 'error', 'message': str(e)}))
                 break
     await ws.send(json.dumps({'type': 'status', 'message': 'connected'}))
     try:
@@ -111,17 +104,11 @@ async def handle(ws):
                 if ps:
                     style = blend_styles(ps)
                     print(f'[style] changed to: {[p["text"][:30] for p in ps]}')
-                    # Don't clear queue — let old chunks play out, new style follows naturally
             elif cmd == 'play' and not playing:
                 playing = True
                 gs = None
-                while not gen_queue.empty():
-                    try:
-                        gen_queue.get_nowait()
-                    except Exception:
-                        break
                 await ws.send(json.dumps({'type': 'status', 'message': '播放中'}))
-                gt = asyncio.gather(asyncio.create_task(generator()), asyncio.create_task(sender()))
+                gt = asyncio.create_task(gen_and_send())
             elif cmd in ('pause', 'stop'):
                 playing = False
                 if gt:

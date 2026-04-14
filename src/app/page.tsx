@@ -178,7 +178,7 @@ export default function SimonePage() {
       nextPlayTimeRef.current = now;
     }
 
-    const MAX_AHEAD = 3; // max seconds of audio scheduled ahead
+    const MAX_AHEAD = 2; // max seconds of audio scheduled ahead
     while (audioQueueRef.current.length > 0) {
       // Don't schedule too far ahead — keeps style changes responsive
       if (nextPlayTimeRef.current - now > MAX_AHEAD) break;
@@ -382,7 +382,15 @@ export default function SimonePage() {
     if (update.prompts && update.prompts.length > 0) {
       sendWs({ command: 'set_prompts', prompts: update.prompts });
       setCurrentPrompts(update.prompts);
-      // Magenta RT transitions smoothly — just update style, don't touch audio pipeline
+      // Stop all audio immediately, new chunks play as soon as they arrive
+      for (const src of scheduledSourcesRef.current) {
+        try { src.stop(); } catch (_) {}
+      }
+      scheduledSourcesRef.current = [];
+      audioQueueRef.current = [];
+      if (audioCtxRef.current) {
+        nextPlayTimeRef.current = audioCtxRef.current.currentTime;
+      }
     }
 
     if (update.config && Object.keys(update.config).length > 0) {
