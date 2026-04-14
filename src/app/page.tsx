@@ -624,9 +624,10 @@ export default function SimonePage() {
       <AmbientBackground genre={genre} />
       <div className="flex flex-col h-[100dvh]" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
         {/* Chat area or initial greeting */}
-        {messages.length === 0 ? (
-          <div className="flex-1 flex flex-col items-center justify-center gap-10 px-4">
-            <div className="text-center animate-fade-up">
+        {/* Genre cards — always visible at top */}
+        <div className="shrink-0 pt-6 pb-2">
+          {messages.length === 0 && (
+            <div className="text-center mb-6 animate-fade-up">
               <h1 className="text-4xl font-light text-white/90 mb-3 tracking-wide"
                   style={{ fontFamily: 'var(--font-display)' }}>
                 Simone
@@ -636,9 +637,12 @@ export default function SimonePage() {
                 嗨，想听点什么？
               </p>
             </div>
-            <GenreCards onSelect={handleGenreSelect} />
-          </div>
-        ) : (
+          )}
+          <GenreCards onSelect={handleGenreSelect} activeGenre={genre} />
+        </div>
+
+        {/* Chat area */}
+        {messages.length > 0 && (
           <ChatBubbles messages={messages} isLoading={isLoading} />
         )}
 
