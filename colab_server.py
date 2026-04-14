@@ -205,7 +205,14 @@ for _ in range(30):
 ws_url = url.replace('https://', 'wss://') if url else 'FAILED'
 print(f'\nWS URL: {ws_url}')
 print(f'NEXT_PUBLIC_WS_URL={ws_url}')
+from websockets.http11 import Response
+def reject_non_ws(connection, request):
+    # Cloudflare sends HTTP health checks with Connection: keep-alive — reject silently
+    upgrade = request.headers.get('Upgrade', '').lower()
+    if upgrade != 'websocket':
+        return Response(200, 'OK', websockets.Headers())
+    return None
 async def run():
-    async with websockets.serve(handle, '0.0.0.0', PORT, max_size=10 * 1024 * 1024):
+    async with websockets.serve(handle, '0.0.0.0', PORT, max_size=10 * 1024 * 1024, process_request=reject_non_ws):
         await asyncio.Future()
 asyncio.get_event_loop().run_until_complete(run())
