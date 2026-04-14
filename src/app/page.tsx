@@ -383,27 +383,9 @@ export default function SimonePage() {
     if (update.prompts && update.prompts.length > 0) {
       sendWs({ command: 'set_prompts', prompts: update.prompts });
       setCurrentPrompts(update.prompts);
-      // Cancel future scheduled sources so new style chunks can "cut in line"
-      const ctx = audioCtxRef.current;
-      if (ctx) {
-        const now = ctx.currentTime;
-        const keep: typeof scheduledSourcesRef.current = [];
-        let latestKeepEnd = now;
-        for (const entry of scheduledSourcesRef.current) {
-          const endAt = entry.startAt + entry.dur;
-          if (entry.startAt <= now) {
-            // Currently playing — keep it, note when it ends
-            keep.push(entry);
-            if (endAt > latestKeepEnd) latestKeepEnd = endAt;
-          } else {
-            // Not yet started — cancel it
-            try { entry.src.stop(); } catch { /* already stopped */ }
-          }
-        }
-        scheduledSourcesRef.current = keep;
-        nextPlayTimeRef.current = latestKeepEnd; // new chunks start right after current one
-      }
-      audioQueueRef.current = [];
+      // Don't cancel playing sources — let old audio continue seamlessly
+      // Server discards stale chunk and regenerates with new style
+      // New style chunk will naturally queue after current audio
     }
 
     if (update.config && Object.keys(update.config).length > 0) {
