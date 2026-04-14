@@ -382,9 +382,8 @@ export default function SimonePage() {
     if (update.prompts && update.prompts.length > 0) {
       sendWs({ command: 'set_prompts', prompts: update.prompts });
       setCurrentPrompts(update.prompts);
-      // Don't stop playing audio — server processes style change immediately,
-      // next generated chunk will use new style and seamlessly follow current audio
-      audioQueueRef.current = []; // clear unscheduled chunks only
+      // Don't stop or clear anything — server processes style change immediately,
+      // old chunks keep playing, new style chunks will seamlessly follow
     }
 
     if (update.config && Object.keys(update.config).length > 0) {
