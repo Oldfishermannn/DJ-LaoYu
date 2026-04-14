@@ -192,7 +192,8 @@ export default function SimonePage() {
       source.buffer = buffer;
       source.connect(destination);
       source.start(nextPlayTimeRef.current);
-      nextPlayTimeRef.current += buffer.duration;
+      // Overlap chunks by 10ms to eliminate micro-gaps from Opus codec padding
+      nextPlayTimeRef.current += buffer.duration - 0.01;
       scheduledSourcesRef.current.push(source);
       source.onended = () => {
         scheduledSourcesRef.current = scheduledSourcesRef.current.filter(s => s !== source);
