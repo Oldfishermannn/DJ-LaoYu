@@ -4,7 +4,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import pako from 'pako';
 import { SIMONE_SYSTEM_PROMPT } from './simone-prompt';
 import AmbientBackground from './components/AmbientBackground';
-import GenreCards from './components/GenreCards';
+// GenreCards removed — replaced by ElementPool as primary UI
 import MiniPlayer from './components/MiniPlayer';
 import TunePanel from './components/TunePanel';
 import ChatBubbles from './components/ChatBubbles';
@@ -59,9 +59,7 @@ export default function SimonePage() {
 
   // ─── Genre & Tag State ───
   const [genre, setGenre] = useState('default');
-  const [activeTag, setActiveTag] = useState('');
   const [showTune, setShowTune] = useState(false);
-  const [showPool, setShowPool] = useState(false);
   const [poolElements, setPoolElements] = useState<string[]>([]);
   const [tuneValues, setTuneValues] = useState({ temperature: 1.3, guidance_weight: 5.0 });
   const poolDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -526,62 +524,6 @@ export default function SimonePage() {
     }
   };
 
-  // ─── Tag/genre card selection ───
-  const handleGenreSelect = useCallback((tagId: string, prompt: string) => {
-    setActiveTag(tagId);
-    // Only set genre for known genre IDs (affects background)
-    const genreIds = ['chill', 'jazz', 'rock', 'electronic', 'lofi', 'funk', 'rnb'];
-    if (genreIds.includes(tagId)) setGenre(tagId);
-    setInput('');
-    setIsLoading(true);
-    const userMsg: Message = { id: uid(), role: 'user', text: prompt, time: Date.now() };
-    setMessages(prev => [...prev, userMsg]);
-
-    const history = historyRef.current;
-    fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        systemPrompt: SIMONE_SYSTEM_PROMPT,
-        history,
-        userMessage: prompt,
-      }),
-    })
-      .then(res => {
-        if (!res.ok) throw new Error(`API error ${res.status}`);
-        return res.json();
-      })
-      .then(data => {
-        const rawText: string = data.text ?? '';
-        const { text: aiText, params } = parseResponse(rawText);
-        const aiMsg: Message = { id: uid(), role: 'ai', text: aiText, params, time: Date.now() };
-        setMessages(prev => [...prev, aiMsg]);
-        historyRef.current = [
-          ...history,
-          { role: 'user' as const, parts: [{ text: prompt }] },
-          { role: 'model' as const, parts: [{ text: rawText }] },
-        ].slice(-20);
-        if (params) {
-          if ((params as Record<string, unknown>).genre) {
-            setGenre((params as Record<string, unknown>).genre as string);
-          }
-          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || !lyriaReadyRef.current) {
-            connectWs().then(() => applyLyriaUpdate(params)).catch(() => {});
-          } else {
-            applyLyriaUpdate(params);
-          }
-        }
-      })
-      .catch(err => {
-        setMessages(prev => [...prev, {
-          id: uid(), role: 'system',
-          text: '连接出错: ' + (err instanceof Error ? err.message : String(err)),
-          time: Date.now(),
-        }]);
-      })
-      .finally(() => setIsLoading(false));
-  }, [connectWs, applyLyriaUpdate]);
-
   // ─── Toggle play/pause ───
   const handleTogglePlay = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
@@ -836,7 +778,12 @@ export default function SimonePage() {
               </p>
             </div>
           )}
-          <GenreCards onSelect={handleGenreSelect} activeGenre={genre} activeTag={activeTag} />
+          {/* Element Pool — primary UI */}
+          <ElementPool
+            activeIds={poolElements}
+            onToggle={handlePoolToggle}
+            visible={true}
+          />
         </div>
 
         {/* Chat area */}
@@ -852,26 +799,11 @@ export default function SimonePage() {
             analyser={analyserRef.current}
             onTogglePlay={handleTogglePlay}
           />
-          {/* Toggle buttons — tune & pool */}
+          {/* Tune toggle */}
           {(wsConnected || genre !== 'default') && (
-            <div className="flex justify-center gap-4 -mt-1 mb-1">
+            <div className="flex justify-center -mt-1 mb-1">
               <button
-                onClick={() => { setShowPool(v => !v); if (!showPool) setShowTune(false); }}
-                className="text-[10px] text-white/30 hover:text-white/60 transition-all duration-300 flex items-center gap-1"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                     className={`transition-transform duration-300 ${showPool ? 'rotate-180' : ''}`}>
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-                {showPool ? '收起调味' : '调味池'}
-                {poolElements.length > 0 && (
-                  <span className="text-[9px] text-white/50 ml-0.5">({poolElements.length})</span>
-                )}
-              </button>
-              <button
-                onClick={() => { setShowTune(v => !v); if (!showTune) setShowPool(false); }}
+                onClick={() => setShowTune(v => !v)}
                 className="text-[10px] text-white/30 hover:text-white/60 transition-all duration-300 flex items-center gap-1"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
@@ -884,11 +816,6 @@ export default function SimonePage() {
               </button>
             </div>
           )}
-          <ElementPool
-            activeIds={poolElements}
-            onToggle={handlePoolToggle}
-            visible={showPool}
-          />
           <TunePanel
             temperature={tuneValues.temperature}
             guidance_weight={tuneValues.guidance_weight}
