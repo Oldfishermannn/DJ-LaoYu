@@ -4,7 +4,7 @@ import tensorflow as tf
 gpus = tf.config.list_physical_devices('GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
-import subprocess, asyncio, json, re, time, struct
+import subprocess, asyncio, json, base64, re, time
 import numpy as np
 subprocess.run(['wget', '-q', 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64', '-O', '/usr/local/bin/cloudflared'], check=True)
 subprocess.run(['chmod', '+x', '/usr/local/bin/cloudflared'], check=True)
@@ -29,10 +29,9 @@ def blend_styles(ps):
     ss=[get_style(p['text']) for p in ps]
     w=np.array([p.get('weight',1.0) for p in ps]); w=w/w.sum()
     return (w[:,np.newaxis]*np.stack(ss)).mean(axis=0)
-def chunk_to_binary(c):
-    """Convert chunk to raw int16 bytes — no base64, no JSON. ~384KB instead of ~512KB."""
+def chunk_to_msg(c):
     int16 = np.clip(c.samples.flatten() * 32767, -32768, 32767).astype(np.int16)
-    return int16.tobytes()
+    return json.dumps({'type':'audio','data':base64.b64encode(int16.tobytes()).decode('ascii')})
 async def handle(ws):
     playing=False; style=None; gs=None; gt=None
     gen_queue = asyncio.Queue(maxsize=6)
@@ -47,8 +46,8 @@ async def handle(ws):
                 gs = gs2
                 gen_time = time.time() - t0
                 if not playing: break
-                raw = chunk_to_binary(c)
-                await gen_queue.put(raw)
+                msg = chunk_to_msg(c)
+                await gen_queue.put(msg)
                 print(f'[gen] {gen_time:.2f}s -> queue={gen_queue.qsize()}')
             except asyncio.CancelledError: break
             except Exception as e:
@@ -62,9 +61,9 @@ async def handle(ws):
                     await ws.send(json.dumps({'type':'error','message':str(item)})); break
                 if not playing: break
                 t0 = time.time()
-                await ws.send(item)  # binary frame — no JSON, no base64
+                await ws.send(item)  # JSON text frame
                 send_time = time.time() - t0
-                print(f'[send] {send_time:.2f}s, {len(item)//1024}KB')
+                print(f'[send] {send_time:.2f}s')
             except asyncio.TimeoutError: continue
             except asyncio.CancelledError: break
             except Exception as e:
