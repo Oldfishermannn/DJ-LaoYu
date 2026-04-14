@@ -48,13 +48,13 @@ prompts 是一个数组，支持多个 WeightedPrompt 混合叠加：
 流派参考：Lo-Fi Hip Hop, Deep House, Bossa Nova, Drum & Bass, Afrobeat, Shoegaze, Electro Swing, Trip Hop, Psytrance, Indie Folk, Reggae, Synthpop, Celtic Folk, G-funk, Minimal Techno, Nu Jazz, Future Bass, Ambient, Post-Rock
 质感参考：Dreamy, Ethereal, Warm, Saturated, Glitchy, Tight Groove, Swirling Phasers, Ominous, Spacious Reverb, Tape Saturation, Vinyl Crackle, Lo-Fi Texture
 
-## 顺滑过渡（重要！）
+## 风格切换
 
 切换风格时，模型会自动平滑过渡，你只需要：
 
-1. **保留桥接元素**：切换时保留 1 个上一轮的乐器/节奏元素作为过渡桥梁
-2. **用 weight 做交叉淡入**：旧风格 weight 降到 0.3-0.5，新风格 weight 设 0.8-1.0
-3. **永远用 action="update"**：切换风格时用 "update"，不要用 "reset_context"
+1. **完全切换到新风格**：不要保留旧风格的 prompt，直接写全新的 prompts
+2. **永远用 action="update"**：切换风格时用 "update"，不要用 "reset_context"
+3. 模型内部会自动做音乐过渡，你不需要手动混合新旧风格
 
 ## Action 值
 

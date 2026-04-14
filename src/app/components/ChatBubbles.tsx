@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface Message {
   id: string;
@@ -14,9 +14,37 @@ interface Props {
   isLoading: boolean;
 }
 
+function TypewriterText({ text, speed = 30 }: { text: string; speed?: number }) {
+  const [displayed, setDisplayed] = useState('');
+  const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    setDisplayed('');
+    setDone(false);
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      if (i >= text.length) {
+        setDisplayed(text);
+        setDone(true);
+        clearInterval(timer);
+      } else {
+        setDisplayed(text.slice(0, i));
+      }
+    }, speed);
+    return () => clearInterval(timer);
+  }, [text, speed]);
+
+  return <>{displayed}{!done && <span className="animate-pulse">|</span>}</>;
+}
+
 export default function ChatBubbles({ messages, isLoading }: Props) {
   const endRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const lastAiIdRef = useRef<string>('');
+
+  // Track which AI message is the latest (for typewriter effect)
+  const latestAiId = [...messages].reverse().find(m => m.role === 'ai')?.id || '';
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -53,7 +81,11 @@ export default function ChatBubbles({ messages, isLoading }: Props) {
                   Simone
                 </div>
                 <div className="glass rounded-2xl rounded-tl-sm px-4 py-3 text-[13.5px] leading-relaxed text-white/85">
-                  {msg.text}
+                  {msg.id === latestAiId ? (
+                    <TypewriterText text={msg.text} speed={60} />
+                  ) : (
+                    msg.text
+                  )}
                 </div>
               </div>
             </div>

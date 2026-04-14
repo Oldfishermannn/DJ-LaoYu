@@ -382,15 +382,9 @@ export default function SimonePage() {
     if (update.prompts && update.prompts.length > 0) {
       sendWs({ command: 'set_prompts', prompts: update.prompts });
       setCurrentPrompts(update.prompts);
-      // Stop all audio immediately, new chunks play as soon as they arrive
-      for (const src of scheduledSourcesRef.current) {
-        try { src.stop(); } catch (_) {}
-      }
-      scheduledSourcesRef.current = [];
-      audioQueueRef.current = [];
-      if (audioCtxRef.current) {
-        nextPlayTimeRef.current = audioCtxRef.current.currentTime;
-      }
+      // Don't stop playing audio — server processes style change immediately,
+      // next generated chunk will use new style and seamlessly follow current audio
+      audioQueueRef.current = []; // clear unscheduled chunks only
     }
 
     if (update.config && Object.keys(update.config).length > 0) {
