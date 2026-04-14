@@ -64,7 +64,14 @@ def gen_one_chunk(gs, s):
         topk=gen_config['topk'],
     )
     gen_time = time.time() - t0
-    int16 = np.clip(c.samples.flatten() * 32767, -32768, 32767).astype(np.int16)
+    # Apply short fade-in/fade-out to eliminate boundary pops (40ms = 1920 samples per channel)
+    samples = c.samples  # shape (96000, 2)
+    fade_len = 1920
+    fade_in = np.sin(np.linspace(0, np.pi/2, fade_len)) ** 2
+    fade_out = np.sin(np.linspace(np.pi/2, 0, fade_len)) ** 2
+    samples[:fade_len] *= fade_in[:, np.newaxis]
+    samples[-fade_len:] *= fade_out[:, np.newaxis]
+    int16 = np.clip(samples.flatten() * 32767, -32768, 32767).astype(np.int16)
     raw_bytes = int16.tobytes()
     opus_data = encode_opus(raw_bytes)
     if opus_data is None:
