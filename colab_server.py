@@ -4,7 +4,7 @@ import tensorflow as tf
 gpus = tf.config.list_physical_devices('GPU')
 for gpu in gpus:
     tf.config.experimental.set_memory_growth(gpu, True)
-import subprocess, asyncio, json, base64, re, time
+import subprocess, asyncio, json, re, time, struct
 import numpy as np
 subprocess.run(['wget', '-q', 'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64', '-O', '/usr/local/bin/cloudflared'], check=True)
 subprocess.run(['chmod', '+x', '/usr/local/bin/cloudflared'], check=True)
@@ -29,22 +29,46 @@ def blend_styles(ps):
     ss=[get_style(p['text']) for p in ps]
     w=np.array([p.get('weight',1.0) for p in ps]); w=w/w.sum()
     return (w[:,np.newaxis]*np.stack(ss)).mean(axis=0)
-def chunk_to_msg(c):
+def chunk_to_binary(c):
+    """Convert chunk to raw int16 bytes — no base64, no JSON. ~384KB instead of ~512KB."""
     int16 = np.clip(c.samples.flatten() * 32767, -32768, 32767).astype(np.int16)
-    return json.dumps({'type':'audio','data':base64.b64encode(int16.tobytes()).decode('ascii')})
+    return int16.tobytes()
 async def handle(ws):
     playing=False; style=None; gs=None; gt=None
-    async def gl():
-        nonlocal gs,playing,style
+    gen_queue = asyncio.Queue(maxsize=6)
+    async def generator():
+        """Generate chunks into queue — decoupled from network sending."""
+        nonlocal gs, playing, style
         while playing:
             try:
-                s=style if style is not None else get_style('chill ambient music with soft piano')
-                c,gs2=mrt.generate_chunk(state=gs,style=s); gs=gs2
+                s = style if style is not None else get_style('chill ambient music with soft piano')
+                t0 = time.time()
+                c, gs2 = mrt.generate_chunk(state=gs, style=s)
+                gs = gs2
+                gen_time = time.time() - t0
                 if not playing: break
-                await ws.send(chunk_to_msg(c))
+                raw = chunk_to_binary(c)
+                await gen_queue.put(raw)
+                print(f'[gen] {gen_time:.2f}s -> queue={gen_queue.qsize()}')
             except asyncio.CancelledError: break
             except Exception as e:
-                await ws.send(json.dumps({'type':'error','message':str(e)})); break
+                await gen_queue.put(e); break
+    async def sender():
+        """Send chunks from queue to client — decoupled from generation."""
+        while playing:
+            try:
+                item = await asyncio.wait_for(gen_queue.get(), timeout=10)
+                if isinstance(item, Exception):
+                    await ws.send(json.dumps({'type':'error','message':str(item)})); break
+                if not playing: break
+                t0 = time.time()
+                await ws.send(item)  # binary frame — no JSON, no base64
+                send_time = time.time() - t0
+                print(f'[send] {send_time:.2f}s, {len(item)//1024}KB')
+            except asyncio.TimeoutError: continue
+            except asyncio.CancelledError: break
+            except Exception as e:
+                print(f'[send error] {e}'); break
     await ws.send(json.dumps({'type':'status','message':'connected'}))
     try:
         async for raw in ws:
@@ -54,11 +78,21 @@ async def handle(ws):
                 if ps: style=blend_styles(ps)
             elif cmd=='play' and not playing:
                 playing=True; gs=None
+                while not gen_queue.empty():
+                    try: gen_queue.get_nowait()
+                    except: break
                 await ws.send(json.dumps({'type':'status','message':'播放中'}))
-                gt=asyncio.create_task(gl())
+                gt = asyncio.gather(
+                    asyncio.create_task(generator()),
+                    asyncio.create_task(sender())
+                )
             elif cmd in('pause','stop'):
                 playing=False
-                if gt: gt.cancel(); gt=None
+                if gt:
+                    gt.cancel()
+                    try: await gt
+                    except: pass
+                    gt=None
                 if cmd=='stop': gs=None
                 await ws.send(json.dumps({'type':'status','message':'已暂停' if cmd=='pause' else '已停止'}))
             elif cmd=='reset_context': gs=None

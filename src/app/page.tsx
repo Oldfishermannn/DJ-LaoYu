@@ -73,20 +73,17 @@ export default function SimonePage() {
   const audioQueueRef = useRef<AudioBuffer[]>([]);
   const isPlayingRef = useRef(false);
   const chunkArrivalTimesRef = useRef<number[]>([]); // 记录最近 N 个 chunk 到达时间
-  const bufferDepthRef = useRef(5); // 初始缓冲深度（chunk 数），会动态调整
-  const INITIAL_BUFFER = 5; // 初始预缓冲
+  const bufferDepthRef = useRef(4); // 初始缓冲深度（chunk 数），会动态调整
+  const INITIAL_BUFFER = 4; // 初始预缓冲（Magenta RT chunk=2s，4个=8s缓冲）
   const MIN_BUFFER = 2; // 最小缓冲深度
-  const MAX_BUFFER = 10; // 最大缓冲深度
+  const MAX_BUFFER = 8; // 最大缓冲深度
   const JITTER_WINDOW = 10; // 用最近 N 个间隔计算抖动
   const hasStartedRef = useRef(false); // true after first playback — never re-buffer after that
 
-  const decodeB64ToPCM = useCallback((b64Data: string): AudioBuffer | null => {
+  const decodeBinaryToPCM = useCallback((data: ArrayBuffer): AudioBuffer | null => {
     const ctx = audioCtxRef.current;
     if (!ctx) return null;
-    const raw = atob(b64Data);
-    const bytes = new Uint8Array(raw.length);
-    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
-    const int16 = new Int16Array(bytes.buffer);
+    const int16 = new Int16Array(data);
     const numSamples = int16.length / CHANNELS;
     if (numSamples === 0) return null;
     const buffer = ctx.createBuffer(CHANNELS, numSamples, SAMPLE_RATE);
@@ -98,6 +95,16 @@ export default function SimonePage() {
     }
     return buffer;
   }, []);
+
+  // Legacy base64 fallback
+  const decodeB64ToPCM = useCallback((b64Data: string): AudioBuffer | null => {
+    const ctx = audioCtxRef.current;
+    if (!ctx) return null;
+    const raw = atob(b64Data);
+    const bytes = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+    return decodeBinaryToPCM(bytes.buffer);
+  }, [decodeBinaryToPCM]);
 
   // 计算自适应缓冲深度：基于 chunk 到达间隔的标准差
   const updateBufferDepth = useCallback(() => {
@@ -155,12 +162,14 @@ export default function SimonePage() {
     }
   }, []);
 
-  const playAudioChunk = useCallback((b64Data: string) => {
+  const playAudioChunk = useCallback((data: string | ArrayBuffer) => {
     const ctx = audioCtxRef.current;
     if (!ctx) return;
     if (ctx.state === 'suspended') ctx.resume();
 
-    const buffer = decodeB64ToPCM(b64Data);
+    const buffer = data instanceof ArrayBuffer
+      ? decodeBinaryToPCM(data)
+      : decodeB64ToPCM(data);
     if (!buffer) return;
 
     // 记录到达时间用于 jitter 计算
@@ -223,7 +232,15 @@ export default function SimonePage() {
         setChunkCount(0);
         if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       };
+      ws.binaryType = 'arraybuffer';
       ws.onmessage = (evt) => {
+        // Binary frame = raw PCM int16 audio (no JSON, no base64)
+        if (evt.data instanceof ArrayBuffer) {
+          chunkCountRef.current++;
+          setChunkCount(chunkCountRef.current);
+          playAudioChunk(evt.data);
+          return;
+        }
         const data = JSON.parse(evt.data);
         if (data.type === 'audio') {
           chunkCountRef.current++;
