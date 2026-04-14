@@ -91,13 +91,14 @@ async def handle(ws):
     style = None
     style_target = None  # target style for interpolation
     style_from = None    # starting style for interpolation
+    style_current = None # last actually-output style (for accurate interrupt)
     transition_step = 0  # 0 = no transition, 1..TRANSITION_CHUNKS = interpolating
     gs = None
     gt = None
     style_ver = 0
     loop = asyncio.get_event_loop()
     async def gen_and_send():
-        nonlocal gs, playing, style, style_ver, style_target, style_from, transition_step
+        nonlocal gs, playing, style, style_ver, style_target, style_from, style_current, transition_step
         while playing:
             try:
                 # Compute current style with interpolation
@@ -107,7 +108,6 @@ async def handle(ws):
                     print(f'[transition] step {transition_step}/{TRANSITION_CHUNKS} t={t:.2f}')
                     transition_step += 1
                     if transition_step > TRANSITION_CHUNKS:
-                        # Transition complete
                         style = style_target
                         style_from = None
                         style_target = None
@@ -116,6 +116,7 @@ async def handle(ws):
                     s_current = s
                 else:
                     s_current = style if style is not None else get_style('chill ambient music with soft piano')
+                style_current = s_current  # track last output for accurate interrupt
                 ver_before = style_ver
                 msg, gs2 = await loop.run_in_executor(_executor, gen_one_chunk, gs, s_current)
                 # Style changed during generation — don't discard, let interpolation handle it
@@ -146,13 +147,8 @@ async def handle(ws):
                     new_style = blend_styles(ps)
                     style_ver += 1
                     if style is not None:
-                        # Start smooth interpolation from current position to new style
-                        # If already transitioning, start from current interpolated position
-                        if transition_step > 0 and style_from is not None and style_target is not None:
-                            t = transition_step / TRANSITION_CHUNKS
-                            style_from = style_from + t * (style_target - style_from)
-                        else:
-                            style_from = style.copy()
+                        # Start interpolation from last actually-output style
+                        style_from = style_current.copy() if style_current is not None else style.copy()
                         style_target = new_style
                         transition_step = 1
                         print(f'[style] v{style_ver} transitioning to: {[p["text"][:30] for p in ps]}')
