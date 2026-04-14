@@ -8,7 +8,7 @@ let package = Package(
         .iOS(.v17)
     ],
     targets: [
-        .executableTarget(
+        .target(
             name: "Simone",
             path: "Simone"
         ),
