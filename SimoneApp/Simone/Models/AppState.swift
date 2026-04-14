@@ -39,6 +39,18 @@ final class AppState {
         lyriaClient.onConnected = { [weak self] in
             self?.sendCurrentPrompts()
         }
+        #if os(iOS)
+        audioEngine.setupRemoteCommandCenter(
+            onPlay: { [weak self] in
+                self?.lyriaClient.sendCommand("play")
+                self?.audioEngine.resume()
+            },
+            onPause: { [weak self] in
+                self?.lyriaClient.sendCommand("pause")
+                self?.audioEngine.pause()
+            }
+        )
+        #endif
     }
 
     // MARK: - Actions
@@ -93,6 +105,12 @@ final class AppState {
             audioEngine.clearQueue()
             lyriaClient.sendPrompts(prompts)
         }
+        #if os(iOS)
+        audioEngine.updateNowPlaying(
+            scene: selectedScene?.label ?? "Simone",
+            style: selectedStyle?.label
+        )
+        #endif
     }
 
     private func sendCurrentPrompts() {

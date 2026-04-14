@@ -196,3 +196,32 @@ final class AudioEngine {
         }
     }
 }
+
+#if os(iOS)
+import MediaPlayer
+
+extension AudioEngine {
+    func updateNowPlaying(scene: String, style: String?) {
+        var info = [String: Any]()
+        info[MPMediaItemPropertyTitle] = style.map { "\(scene) × \($0)" } ?? scene
+        info[MPMediaItemPropertyArtist] = "Simone"
+        info[MPNowPlayingInfoPropertyIsLiveStream] = true
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = info
+    }
+
+    func setupRemoteCommandCenter(
+        onPlay: @escaping () -> Void,
+        onPause: @escaping () -> Void
+    ) {
+        let center = MPRemoteCommandCenter.shared()
+        center.playCommand.addTarget { _ in
+            onPlay()
+            return .success
+        }
+        center.pauseCommand.addTarget { _ in
+            onPause()
+            return .success
+        }
+    }
+}
+#endif
