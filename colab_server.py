@@ -107,16 +107,26 @@ async def handle(ws):
 
                 elif cmd == 'set_config':
                     cfg = m.get('config', {})
-                    for key in ['temperature', 'guidance', 'density', 'brightness', 'bpm', 'top_k']:
+                    for key in ['temperature', 'guidance', 'density', 'brightness', 'bpm', 'top_k',
+                                'mute_bass', 'mute_drums', 'only_bass_and_drums', 'music_generation_mode']:
                         if key in cfg:
                             current_config[key] = cfg[key]
-                    # Build config — must send all fields (Lyria resets unset ones)
                     config_kwargs = {}
                     for key, val in current_config.items():
                         if key in ('temperature', 'guidance', 'density', 'brightness'):
                             config_kwargs[key] = float(val)
                         elif key in ('bpm', 'top_k'):
                             config_kwargs[key] = int(val)
+                        elif key in ('mute_bass', 'mute_drums', 'only_bass_and_drums'):
+                            config_kwargs[key] = bool(val)
+                        elif key == 'music_generation_mode':
+                            mode_map = {
+                                'QUALITY': types.MusicGenerationMode.QUALITY,
+                                'DIVERSITY': types.MusicGenerationMode.DIVERSITY,
+                                'VOCALIZATION': types.MusicGenerationMode.VOCALIZATION,
+                            }
+                            if val in mode_map:
+                                config_kwargs[key] = mode_map[val]
                     config = types.LiveMusicGenerationConfig(**config_kwargs)
                     await session.set_music_generation_config(config=config)
                     print(f'[config] {config_kwargs}')
