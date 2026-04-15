@@ -42,7 +42,7 @@ async def handle(ws):
 
             # Background task: accumulate small Lyria chunks into ~0.5s buffers
             async def forward_audio():
-                BUFFER_TARGET = 96000  # 48kHz * 2ch * 2bytes * 0.5s
+                BUFFER_TARGET = 384000  # 48kHz * 2ch * 2bytes * 2s
                 audio_buffer = bytearray()
                 chunk_count = 0
                 try:
