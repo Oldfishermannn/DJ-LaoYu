@@ -479,18 +479,22 @@ v1.0 上架版采取「全功能免费解锁、无试用限制」策略简化提
 
 ## v1.1.0 —— 稳定性修复（Phase B）✅ 2026-04-16 完成
 
-**目标**：消除用户流失点，把 v1.0 地基打牢。
+**目标**：消除用户流失点，把 v1.0 地基打牢。**所有稳定性改动走后台不可见方案，不主动打断用户。**
 
 - [x] **30s Ring Buffer**：`AudioBufferQueue` 从 unbounded FIFO 改成容量 30s（5.76MB）环形缓冲，超容量丢最老。切后台/锁屏/网络抖动期间 player 吃老缓冲不断音
 - [x] **重连平滑**：`LyriaClient.handleDisconnect` 本来就不动音频队列，配合 ring buffer 天然无感重连
-- [x] **25min 自动换台**：`AppState.sessionRotationTimer` 独立定时器，到点调 `nextStyle()`，规避 Lyria 长连接老化。Settings 暴露 AUTO CHANNEL ROTATE 开关，UserDefaults 持久化，默认 on
 - [x] **卡死 watchdog**：`AudioEngine` 每 3s 检查 `isPlaying && isUnderrun && 10s 无 chunk` → 触发 `onPlaybackStalled` → AppState 自动重连
 - [x] **Trial 残留代码清理**：grep 全代码库无 trial/free/paid 相关悬挂逻辑，v1.0 本身就是全解锁干净版
 - [x] **NowPlaying artwork**：`makeArtwork` 渲染 512×512 频道色渐变 + "Simone" logo + 风格名；title/artist 补齐
 
-**关键文件**：`AudioBufferQueue.swift` · `AudioEngine.swift` · `AppState.swift` · `SettingsView.swift`
+**撤回项（违反"不破坏沉浸感"原则）**：
+- ~~25min 自动换台~~ → 用户正聆听时强制跳台违反 Phase 2.6"Evolve 不换台"原则；已撤回。长连接稳定性由 ring buffer + watchdog + reconnect 三层兜底，无需换台
 
-**可逆性**：ring buffer 容量可配置（init 参数）· 换台开关可关 · watchdog 可通过不绑定 callback 禁用 · commit `0d5636c` 单独 revert 整体回 v1.0
+**关键文件**：`AudioBufferQueue.swift` · `AudioEngine.swift` · `AppState.swift`
+
+**单元测试**：`AudioBufferQueueTests` 13/13 通过（覆盖容量追踪、丢最老 FIFO、dequeue/drainAll/clear 重置）
+
+**可逆性**：ring buffer 容量可配置 · watchdog 解绑 callback 即失效 · artwork 是纯新增不影响旧行为
 
 **验收**：App Store 上架后 TestFlight 实测待老鱼反馈
 
