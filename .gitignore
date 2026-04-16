@@ -1,6 +1,9 @@
 # macOS
 .DS_Store
 
+# Brainstorming visual companion
+.superpowers/
+
 # 独立子仓库（simone ios 有自己的 git repo: simone_ios_appstore.git）
 simone ios/
 
