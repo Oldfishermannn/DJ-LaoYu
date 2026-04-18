@@ -473,7 +473,7 @@ v1.0 上架版采取「全功能免费解锁、无试用限制」策略简化提
 |---|---|---|---|---|
 | v1.1.0 | 稳定性 | 1.5 周 | 1.5 周 | ✅ 2026-04-16 完成 |
 | v1.1.1 | 交互重塑 | 2 周 | 3.5 周 | ✅ 2026-04-18 确认已 ship 到 iOS main |
-| v1.2 | Fog 视觉重设计 | 2 周 | 5.5 周 | 📋 立项中 |
+| v1.2 | Fog 视觉重设计 | 2 周 | 5.5 周 | 📋 立项中（Phase 1-4 已在 `feature/fog-redesign` 分支，Phase 5 字体待做） |
 | v1.3 | 商业化 | 1 周 | 6.5 周 | 📋 待启动 brainstorm |
 | v2.0 | 音乐表现力 | 2 周 | 8.5 周 | 📋 brainstorm 已做，待实施 |
 | v2.1 | 平台集成 | 2 周 | 10.5 周 | 📋 brainstorm 已做，待实施 |
@@ -543,9 +543,9 @@ commit 范围 `1626c88..fb43a5f` [8/12..12/12] 加上后续 polish/fix 一系列
 
 ## v1.2 —— Fog City Nocturne 视觉重设计（立项中，待审核）
 
-**状态**：📋 立项中（设计已锁，待老鱼审批后进入 v1.2 实施）
+**状态**：📋 立项中（设计已锁；iOS 仓 `feature/fog-redesign` 分支上 Phase 1-4 代码仍在，待老鱼审批采用策略后推进 Phase 5）
 **设计 spec**：`docs/superpowers/specs/2026-04-18-simone-fog-redesign.md`（Fog v5 最终锁定版，含完整色板/字体/页面架构/mockup）
-**前置条件**：v1.1.1 ship 后紧接开工，放在商业化之前做 —— UI 烂的时候做付费转化等于砸自己。
+**前置条件**：v1.1.1 已 ship 到 iOS main（2026-04-18），进入 v1.2 执行窗口 —— UI 烂的时候做付费转化等于砸自己，放在商业化之前做。
 
 ### 定位
 
@@ -573,13 +573,32 @@ v1.0 上架的视觉是功能优先快速成型版本，老鱼在 v1.1 交互重
 
 ### 实施阶段（6 个独立 commit 抓手）
 
-- [ ] **P0 · Checkpoint** · 建 `feature/v2-fog` 分支 + 主线 tag，所有改动可秒回滚
-- [ ] **P1 · FogTheme 设计系统** · `Models/FogTheme.swift`（OKLCH 色板 + 字体/间距 tokens）
-- [ ] **P2 · SettingsView 一屏化重写**（影响最局部，独立验证）
-- [ ] **P3 · ImmersiveView 底部文案 + Music DNA 标签层**
-- [ ] **P4 · DetailsView/ChannelPageView 频道列表样式**
-- [ ] **P5 · 字体资源接入**（Unbounded / Fraunces / Archivo，含 license 核实）
+- [x] **P0 · Checkpoint** · iOS 仓 `feature/fog-redesign` 分支，主线 v1.1.1 打 tag 前可秒回滚
+- [x] **P1-2 · FogTheme + SettingsView 一屏化** · commit `74f2685`（系统 font fallback，字体资源未接）
+- [x] **P3 · ImmersiveView 采用 FogTheme 字体 tokens** · commit `1b9c0ea`
+- [x] **P4 · 频道列表与 dial 采用 Fog typography** · commit `3426d49`
+- [ ] **P5 · 字体资源接入**（Unbounded / Fraunces / Archivo，含 license 核实） —— **唯一未完工项**
+- [ ] **P6 · 合回 main** · 把 Fog 三个 commit 挑到 `main`，pipeline 三个补丁（`412f04d/06b013d/f6c46d8`）单独评估是否保留
 - 每个 P 阶段 TestFlight 跑几天，确认"不破坏沉浸感"原则没违背
+
+### 采用策略（2026-04-18 更新）
+
+**选 A：在现有 `feature/fog-redesign` 基础上做 Phase 5 + 合回 main**。理由：Phase 1-4 已落地 + 构建通过，重做纯浪费；选 B（全推倒）只剩心智负担，没收益。
+
+**Phase 5 字体接入打算**：
+1. 下载 Unbounded / Fraunces / Archivo（确认 SIL OFL license 允许 bundle 到 IPA）
+2. 加 `*.ttf` 到 Xcode target + `Info.plist` `UIAppFonts`
+3. 改 `FogTheme.swift` 的 `display/mono` 函数从 `.system(...)` 切到真字体
+4. TestFlight 两天看是否"不破坏沉浸感"
+
+**合回 main 路径**：
+- 保留：三个 `feat(fog):` commit（`74f2685` / `1b9c0ea` / `3426d49`） + 待做的 P5 字体 commit
+- 评估：三个 pipeline commit（`412f04d` drop xcodegen / `06b013d` App Store Connect API / `f6c46d8` team ID 修正）—— 与 Fog 视觉无关，是否单独 PR 合回由老鱼决定
+- 方式：cherry-pick 三个 fog commit 到 main，避免把 pipeline 改动捎带上
+
+**风险提示**：
+- `feature/fog-redesign` 自 2026-04-16 起没同步过 main，main 上有 v1.1.1 全套改动（横滑换频道 / Evolve / AutoTune / visualizer 绑定）。cherry-pick 前需要先 rebase 或手动核对 `SettingsView.swift`（Fog 改的版本 ≠ v1.1.1 改的版本）有无冲突
+- Fog 分支上的 SettingsView 是当时主线版改的，v1.1.1 在 SettingsView 加了 visualizer 绑定行；P2 的"一屏化"需要考虑 v1.1.1 新增行怎么塞
 
 ### 风险
 
@@ -590,9 +609,10 @@ v1.0 上架的视觉是功能优先快速成型版本，老鱼在 v1.1 交互重
 
 ### 2026-04-18 立项备注
 
-- 本立项前曾有一次实施尝试（`feature/fog-redesign` 分支，Phase 1-4 代码落地 + 构建通过），老鱼否掉："应该先写 plan 到 SimonePlan（例如 simone v2 这种），立项通过后再实施"
-- 该分支已删除，所有源文件回滚到 v1.1.1 状态，零残留
-- 本 v1.2 立项条目即为用户要求的正式立项入口
+- 本立项前曾有一次实施尝试（`feature/fog-redesign` 分支），老鱼否掉："应该先写 plan 到 SimonePlan（例如 simone v2 这种），立项通过后再实施"
+- **分支状态修正（2026-04-18 复查）**：分支未删除，Phase 1-4 代码仍在 iOS 仓 `feature/fog-redesign` 上活着（`74f2685` / `1b9c0ea` / `3426d49`），上层叠了三个 pipeline 补丁。早先立项文案写"已删除，零残留"不准确
+- **采用策略已定**：老鱼选 A（复用现有 Phase 1-4，继续做 Phase 5 字体 + 合回 main），见上方「采用策略」小节
+- 本次立项更新为纯 plan 改动，未动任何源码；iOS 仓 `feature/fog-redesign` 保持不动待审批后推进
 
 ### 验收
 
