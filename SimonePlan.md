@@ -573,12 +573,13 @@ v1.0 上架的视觉是功能优先快速成型版本，老鱼在 v1.1 交互重
 
 ### 实施阶段（6 个独立 commit 抓手）
 
-- [x] **P0 · Checkpoint** · iOS 仓 `feature/fog-redesign` 分支，主线 v1.1.1 打 tag 前可秒回滚
-- [x] **P1-2 · FogTheme + SettingsView 一屏化** · commit `74f2685`（系统 font fallback，字体资源未接）
-- [x] **P3 · ImmersiveView 采用 FogTheme 字体 tokens** · commit `1b9c0ea`
-- [x] **P4 · 频道列表与 dial 采用 Fog typography** · commit `3426d49`
-- [ ] **P5 · 字体资源接入**（Unbounded / Fraunces / Archivo，含 license 核实） —— **唯一未完工项**
-- [ ] **P6 · 合回 main** · 把 Fog 三个 commit 挑到 `main`，pipeline 三个补丁（`412f04d/06b013d/f6c46d8`）单独评估是否保留
+- [x] **P0 · Checkpoint** · iOS 仓 main 打 tag `v1.1.1-pre-fog`（2026-04-18）
+- [x] **P1-2 · FogTheme + SettingsView 一屏化** · commit `4055e67`（cherry-pick 自 `74f2685`）
+- [x] **P3 · ImmersiveView 采用 FogTheme 字体 tokens** · commit `8ea1e95`（cherry-pick 自 `1b9c0ea`）
+- [x] **P4 · 频道列表与 dial 采用 Fog typography** · commit `bfa6341`（cherry-pick 自 `3426d49`）
+- [x] **P5a · Unbounded/Fraunces/Archivo OFL 字体 bundle** · commit `a53b146`（5 TTF + 3 OFL，+2.82 MB）
+- [x] **P5b · FogTheme swap `.system()` → `Font.custom("Unbounded"|"Fraunces"|"Archivo")`** · commit `5711d74`（runtime log 验证 3 family 全部注册成功）
+- [ ] **P6 · 合回 main** · 把 `feature/v1.2-fog` 上 5 个 Fog commit cherry-pick 或 merge 到 `main`，pipeline 三个补丁（`412f04d/06b013d/f6c46d8`）单独评估是否保留
 - 每个 P 阶段 TestFlight 跑几天，确认"不破坏沉浸感"原则没违背
 
 ### 采用策略（2026-04-18 更新）
