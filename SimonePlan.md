@@ -473,7 +473,7 @@ v1.0 上架版采取「全功能免费解锁、无试用限制」策略简化提
 |---|---|---|---|---|
 | v1.1.0 | 稳定性 | 1.5 周 | 1.5 周 | ✅ 2026-04-16 完成 |
 | v1.1.1 | 交互重塑 | 2 周 | 3.5 周 | ✅ 2026-04-18 确认已 ship 到 iOS main |
-| v1.2 | Fog 视觉重设计 | 2 周 | 5.5 周 | 📋 立项中（Phase 1-4 已在 `feature/fog-redesign` 分支，Phase 5 字体待做） |
+| v1.2 | Fog 视觉重设计 | 2 周 | 5.5 周 | ✅ 2026-04-19 全部闭环并 merge 到 iOS main（`842b589`） |
 | v1.3 | 商业化 | 1 周 | 6.5 周 | 📋 待启动 brainstorm |
 | v2.0 | 音乐表现力 | 2 周 | 8.5 周 | 📋 brainstorm 已做，待实施 |
 | v2.1 | 平台集成 | 2 周 | 10.5 周 | 📋 brainstorm 已做，待实施 |
@@ -541,9 +541,9 @@ commit 范围 `1626c88..fb43a5f` [8/12..12/12] 加上后续 polish/fix 一系列
 
 ---
 
-## v1.2 —— Fog City Nocturne 视觉重设计（立项中，待审核）
+## v1.2 —— Fog City Nocturne 视觉重设计 ✅ 2026-04-19 合入 iOS main
 
-**状态**：📋 立项中（设计已锁；iOS 仓 `feature/fog-redesign` 分支上 Phase 1-4 代码仍在，待老鱼审批采用策略后推进 Phase 5）
+**状态**：✅ 全部 Phase 闭环。`feature/v1.2-fog` 35 commit 通过 `--no-ff` merge 到 iOS main（merge commit `842b589`），锚点 tag `v1.1.1-pre-v1.2-merge` 已推。
 **设计 spec**：`docs/superpowers/specs/2026-04-18-simone-fog-redesign.md`（Fog v5 最终锁定版，含完整色板/字体/页面架构/mockup）
 **前置条件**：v1.1.1 已 ship 到 iOS main（2026-04-18），进入 v1.2 执行窗口 —— UI 烂的时候做付费转化等于砸自己，放在商业化之前做。
 
@@ -579,7 +579,7 @@ v1.0 上架的视觉是功能优先快速成型版本，老鱼在 v1.1 交互重
 - [x] **P4 · 频道列表与 dial 采用 Fog typography** · commit `bfa6341`（cherry-pick 自 `3426d49`）
 - [x] **P5a · Unbounded/Fraunces/Archivo OFL 字体 bundle** · commit `a53b146`（5 TTF + 3 OFL，+2.82 MB）
 - [x] **P5b · FogTheme swap `.system()` → `Font.custom("Unbounded"|"Fraunces"|"Archivo")`** · commit `5711d74`（runtime log 验证 3 family 全部注册成功）
-- [ ] **P6 · 合回 main** · 把 `feature/v1.2-fog` 上 5 个 Fog commit cherry-pick 或 merge 到 `main`，pipeline 三个补丁（`412f04d/06b013d/f6c46d8`）单独评估是否保留
+- [x] **P6 · 合回 main** · `--no-ff` merge commit `842b589` · 零冲突 · 35 commit 全保留 · 锚点 tag `v1.1.1-pre-v1.2-merge` 可单 commit revert
 - 每个 P 阶段 TestFlight 跑几天，确认"不破坏沉浸感"原则没违背
 
 ### 采用策略（2026-04-18 更新）
