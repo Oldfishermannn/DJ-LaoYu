@@ -1,123 +1,74 @@
 @AGENTS.md
 
-# Simone — AI Ambient Radio
+# Simone — AI Mood Radio
 
-## 项目概述
+## TL;DR
 
-Simone 是一个 AI 实时音乐生成 iOS/Mac App。采用「氛围电台」定位：选台就完了，不是播放器而是电台。用 Google Lyria RealTime API 实时生成器乐音乐，用于学习、开车、派对、居家等场景。
+- **是什么**：iOS/Mac AI 氛围电台，Google Lyria RealTime 实时生成器乐
+- **架构**：客户端直连 Google WebSocket，零服务器，BYOK + 内置 Key
+- **当前**：v1.0 已上架（2026-04-16），推进 v1.2.1（PromptBuilder）→ v1.3（商业化）
+- **角色**：CEO = 老鱼 · COO = 小克 · 员工见 `AGENTS.md`
+- **铁律**：一切可逆 · Phase 切换走 `/clear` SOP · 改完模拟器跑给老鱼看
+- **唤醒**：先读 `SimonePlan.md` + `docs/team-status.md`
 
-## 当前状态
+## 路线图
 
-🎉 **2026-04-16 v1.0 成功上架 App Store**（全功能免费解锁版本）
+**已 ship**：v1.0（App Store）· v1.1.0 稳定性 · v1.1.1 交互重塑 · v1.2（2026-04-19 merge `842b589`, tag `v1.1.1-pre-v1.2-merge`）Fog City Nocturne
 
-### v1.0 已完成
-- ✅ Phase 1-5 全部闭环（直连 Google API + UI 重设计 + App Store 上架）
-- ✅ 28 个可视化器实装 + BYOK + 内置 Key
+**规划中**（先稳 → 再变 → 再美 → 再赚 → 再爽 → 再连）：
 
-### v1.x 规划中（2026-04-18 老鱼拍板新顺序：先稳 → 再变 → 再美 → 再赚 → 再爽 → 再连）
+| 版本 | 核心抓手 |
+|---|---|
+| **v1.2.1** 📋 | PromptBuilder 三维度（instruments/density/energy）调制，撑 30 分钟不疲劳 |
+| **v1.3** 📋 | StoreKit 2 + Flow/Tune/Studio 分层 + 前 14 天 50% off 年订阅 |
+| **v2.0** 📋 | 频谱三层耦合驱动 + BPM + Smart Adapt + Slow Jam |
+| **v2.1** 📋 | 锁屏 ◁▷ + 灵动岛 + Widget + 反调试 |
 
-| 版本 | 主题 | 核心抓手 |
-|---|---|---|
-| **v1.1.0** ✅ | 稳定性 | 30s Ring Buffer + 卡死 watchdog + NowPlaying artwork（不破坏沉浸感） |
-| **v1.1.1** ✅ | 交互重塑 | 横滑换频道（主页/沉浸/详情统一）+ Evolve 修对 + Auto Tune 默认关（[spec](docs/superpowers/specs/2026-04-16-v1.1.1-interaction-redesign-design.md)，2026-04-18 确认已 ship 到 iOS main） |
-| **v1.2** ✅ | Fog 视觉重设计 | Fog City Nocturne · OKLCH 冷色 + Unbounded/Fraunces/Archivo 字体系统 + 一屏化 Settings + 5 频道大小图物体 morph（2026-04-19 merge 到 iOS main `842b589`，锚点 tag `v1.1.1-pre-v1.2-merge`） |
-| **v1.3** 📋 | 商业化 | StoreKit 2 + Flow/Tune/Studio 分层 + 前 100 名 50% off |
-| **v2.0** 📋 | 音乐表现力 | 频谱三层耦合驱动（高频跟音频/中频跟时间/低频跟 Evolve）+ Evolve 深度算法 + BPM UI + Smart Adapt + Slow Jam 推荐 |
-| **v2.1** 📋 | 平台集成 | 频谱快照 artwork + 锁屏◁▷切风格 + 灵动岛 Live Activity（伪频谱 bar）+ 中号 Widget（◁▷ 交互）+ API Key 反调试 |
-
-完整规划见 `SimonePlan.md`。v2.2+ 长尾延后：多风格混合、离线电台、导出、主题、Mac 版、iPad 适配、CloudKit 同步。
+完整规划见 `SimonePlan.md`。
 
 ## 技术栈
 
-- **iOS/Mac**: SwiftUI + AVFoundation + Keychain
-- **实时音乐**: Google Gemini Live Music API（直连 WebSocket，零服务器）
-- **端点**: `wss://generativelanguage.googleapis.com/ws/...BidiGenerateMusic?key=KEY`
-- **模型**: `models/lyria-realtime-exp`
-- **音频格式**: PCM 16-bit, 48kHz, stereo
-- **API Key**: BYOK + 内置试用 Key（XOR 混淆 + 字节数组拆分）
-- **付费**: StoreKit 2（v1.0 占位，未接）
+SwiftUI + AVFoundation + Keychain · Google Gemini Live Music API (`models/lyria-realtime-exp`) PCM 48kHz stereo · 客户端直连 WebSocket · BYOK + 内置 Key（XOR 混淆）· StoreKit 2（v1.3 接入）
 
-## 架构
+## 目录速查
 
-```
-iPhone/Mac App
-  ├── 首次打开：内置 Key（XOR 混淆）免费试用
-  ├── 深度用户：设置里填自己的 Gemini API Key，无限使用
-  ├── 直连 Google Gemini Live Music API (WebSocket)
-  ├── Keychain 安全存储用户 API Key
-  └── 零服务器，零运维（Apple Developer $99/年）
-```
+- `simone ios/` 上架版（独立 git）· `simone mac/` Mac 版
+- `simone ios/Simone/`：`Network/` LyriaClient + Keychain + 混淆 + PromptBuilder · `Models/` AppState + MusicStyle + StyleCategory · `Views/` ContentView(4 页) + Settings + Visualizers
+- `docs/` superpowers plans · roles 员工卡 · daily 日报 · team-status.md
+- `_archive/` 老架构不再使用
+- Bundle: `com.simone.ios` · Team `9YD5W53S9K`
 
-## 目录结构
+## 产品定位
 
-```
-simone/
-├── simone ios/              # iOS v1.0 上架版（独立 git）
-│   └── Simone.xcodeproj
-├── simone mac/              # Mac 版源码
-│   └── Simone.xcodeproj
-├── SimonePlan.md            # 权威计划书（5 个 Phase + Phase 2.5/2.6）
-├── appstore-screenshots/    # App Store 上架截图素材
-├── docs/superpowers/        # 设计规划文档（plans + specs）
-├── _archive/                # 历史归档
-│   ├── colab-bridge/        # 老架构 Python 桥接服务器
-│   ├── web/                 # Next.js Web 原型
-│   ├── duplicate-project/   # SimoneApp 冗余副本
-│   └── Simone_ios_old/      # colab bridge 时代的 iOS 旧版
-└── CLAUDE.md
-```
+AI Mood Radio · 都市夜晚温柔陪伴 · 零引导自解释 · 默认 Lo-fi Chill · Flow/Tune/Studio 分层 · **Evolve 只做风格内微调不换台**
 
-## 关键路径（iOS v1.0）
+## 铁律
 
-- `simone ios/Simone/Network/LyriaClient.swift` — 直连 Google WebSocket + 会话轮转
-- `simone ios/Simone/Network/KeychainHelper.swift` — Keychain CRUD
-- `simone ios/Simone/Network/APIKeyObfuscator.swift` — 内置 Key 混淆（防 strings 提取）
-- `simone ios/Simone/Network/PromptBuilder.swift` — Lyria 参数构建
-- `simone ios/Simone/Models/AppState.swift` — 状态中心 + 分类/演化/定时
-- `simone ios/Simone/Models/MusicStyle.swift` — MoodStyle + 20 预设
-- `simone ios/Simone/Models/StyleCategory.swift` — 10 分类枚举（Lo-fi/Jazz/Blues/R&B/Rock/Pop/Electronic/Classical/Ambient/Folk）
-- `simone ios/Simone/Views/ContentView.swift` — 4 页结构（沉浸/主页/频道/设置）
-- `simone ios/Simone/Views/SettingsView.swift` — 完整设置页
-- `simone ios/Simone/Views/APIKeySettingsView.swift` — BYOK 入口
-- `simone ios/Simone/Views/Visualizers/` — 18 可视化器
+**一切可逆**：每抓手单独 commit · 不破坏性删除用 flag 覆盖 · 新交互留回退入口 · schema 保留旧 key 一版 · 每版 TestFlight 可回滚。
 
-## 产品定位（Phase 2.6 终稿）
+**UI/UX 任务动手前必须调 `plugin:impeccable:impeccable`**（visualizer / 字体 / 颜色 / 布局 / 交互 / 微调都算，纯功能不触发）。"再微调一下"也不豁免——凭感觉迭代会漂移回 AI slop（border-left 彩条 / cyan-on-dark / 景深 / 通用图表）。设计上下文 `.impeccable.md`。
 
-- **品牌**：Simone - AI Ambient Radio
-- **人格**：都市夜晚 + 温柔陪伴，外壳克制带一点梦感
-- **核心原则**：零引导，所有操作自解释
-- **默认频道**：Lo-fi Chill
-- **分层命名**：Flow（能听）/ Tune（能选）/ Studio（能造）
-- **Evolve**：不换台，只做当前风格内部微调（加减乐器、密度变化、轻微能量变化）
+## 改完必测
 
-## Bundle 信息
+1. **打开模拟器给老鱼看**：`open "simone ios/Simone.xcodeproj"`，Cmd+R 跑 iPhone 15 Pro，老鱼亲眼看
+2. **端到端听 30 秒音频**：HMR 对 AudioContext 不可靠，重启 app 从静默到出声整段听
+3. **过 test list**（本次相关必测 + 无关抽样）：
+   - [ ] 首屏 5 秒内出声（默认 Lo-fi Chill）
+   - [ ] 横滑切频道 3 秒内出新声
+   - [ ] Evolve 是风格内微调，不是硬切
+   - [ ] 内置 Key 10 分钟不断流 · BYOK 无限用
+   - [ ] Settings 开关杀 app 重启保留
+   - [ ] 锁屏 artwork 正确 · 后台 5 分钟不被杀
+   - [ ] 5 默认 visualizer（tape/oscilloscope/liquor/ember/matrix）切换正常
 
-- **iOS Bundle ID**: `com.simone.ios`
-- **Team ID**: `627M26D553`
+CI/快验：`./scripts/verify-build.sh`（iOS Engineer 报 DONE 前必跑）· 大改用 `./scripts/verify-build.sh --background` 边干边编
 
-## 核心开发原则
+## Context 防爆 SOP
 
-**所有操作必须可逆**（v1.1 起强制执行）：
-- **Git 粒度**：每个独立抓手单独 commit，出问题能 `git revert` 回上一步不牵连其他功能
-- **不做破坏性删除**：老逻辑不直接删，用新默认值或 feature flag 覆盖；v1.1 确认稳定再清理
-- **用户体感可逆**：新交互默认保留"回到旧方式"的入口或偏好开关，用户不适应能退回
-- **数据可逆**：改 UserDefaults / Keychain schema 时保留旧 key 一个版本，读迁移写新格式
-- **发布可逆**：每个 v1.1.x ship 前保证能通过 TestFlight 回滚到前一版
+**Phase 切换 或 角色切换 都触发**四步：① 覆盖更新 `docs/team-status.md` 自己那行（时间戳 + DONE / BLOCKED / IN-PROGRESS）→ ② 主动 `/clear` → ③ 新窗口只读 CLAUDE.md + team-status.md + 对应 `docs/roles/<ROLE>.md` + 当前 phase plan → ④ 开干。
 
-> 因为信任所以简单——但信任的前提是每一步都能回退。
+角色切换是关键：同一对话里从 engineer 换到 PM 不 clear，上顶帽子的 context 会污染下顶的判断。**换帽子 = 换窗口**，不是换语气。
 
-## UI/UX 开发原则
+探索类活（大文件 / 全仓 grep / debug）外包 `Explore` / `general-purpose` subagent，返回 ≤200 字总结。多条独立线用 worktree + 独立窗口（`superpowers:using-git-worktrees`）。
 
-**一切 UI/UX 相关的工作，第一步必须显式调用 `plugin:impeccable:impeccable` skill——无一例外。**
-
-- 范围（都算 UI/UX）：visualizer 视觉/动效 · 字体 · 颜色 · 布局 · 组件 · 交互流程 · 信息架构 · 压扁/调色/间距/微调。
-- 即使是"小改动"、"再微调一下"、"同一组件再迭代一版"——都必须**在动手前**再调一次 skill（不沿用 session 内上次调用的上下文）。
-- 纯功能修复（audio/network/state 逻辑）不触发。
-- Why：impeccable 有系统化的审美原则 + AI slop 检测，凭感觉迭代会漂移回训练默认（border-left 彩条 / cyan-on-dark / 居中摄影景深 / 通用 visualizer 图表感等），即便前一版是 impeccable 出的也可能一步步漂走。
-- 违规信号：用户问"你调用 impeccable 了吗" = 上一轮失守，立即补调用并按原则重审视。
-
-设计上下文在 `.impeccable.md`。
-
-## 唤醒上下文
-
-打开项目前先读 `SimonePlan.md` 拿到完整计划书。iOS 版在 `simone ios/` 里有独立 git 历史（`V1.0 App Store ready` commit），和主 repo 的 git 独立。老架构代码（Python 桥接、Next.js 原型）都在 `_archive/`，不再使用。
+**Background subagent 完成时强制写 team-status.md**：所有 spawn 出去的 subagent，收尾必须覆盖更新自己那行（带时间戳 + 结果），COO 定期扫这一个文件即可，不用追每个 agent 的输出。

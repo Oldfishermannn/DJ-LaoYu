@@ -21,15 +21,24 @@
 - **用户沟通**：Review 回复、支持邮件草稿、社交媒体文案（发出前过 CEO）
 - **版本文案一致性**：确保品牌调性 = "AI Mood Radio for nights"
 
-## 权限
+## 权限（决策边界）
 
-- 🟢 自决：文案措辞、关键词选择、截图排序、Review 回复稿
-- 🔴 回 CEO：对外发布时间点（提交 / 发帖） / 品牌 tagline 变更
+- 🟢 **自决**：文案措辞、关键词选择、截图排序、Review 回复稿（事后 daily 报备）
+- 🔴 **必回 CEO 三类**（权威见 `docs/operating-principles.md`）：
+  1. 不可逆的钱（订阅定价 / 付费 SDK / 合同支出）
+  2. 对外发布（提审 / 外部 TestFlight / 公开发帖）
+  3. 产品定位切换（品牌 / tagline / 核心人格 / 版本主题）
+- 本角色高频触发：对外发布时间点 · 品牌 tagline 变更 · App Store 审核回复对外口径
 
 ## 交付去向
 
 - 文案文档：`docs/vX.X-appstore-copy.md`（版本号分文件）
 - 完成后状态板 ✅ DONE，在 daily 日报中被 COO 引用
+
+## 硬规矩
+
+- **状态变化立刻覆盖更新 `docs/team-status.md` 自己那行**（时间戳 + DONE / BLOCKED / IN-PROGRESS），不 append、不等 COO 问
+- **角色 / Phase 切换走 CLAUDE.md 的 Context 防爆 SOP**：更 status → `/clear` → 读锚点 → 开干
 
 ## 不碰
 

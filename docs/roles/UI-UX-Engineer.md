@@ -31,16 +31,25 @@
 - **频道物体 morph**：5 频道大小图物体过渡
 - **UI/UX 诊断**：定期审视字号 / pause 缩图 / 手势嵌套 / 纵滑 affordance
 
-## 权限
+## 权限（决策边界）
 
-- 🟢 自决：所有视觉/动效/字号/间距细节，基于 impeccable 输出
-- 🔴 回 CEO：品牌视觉总方向切换（Fog → XX）、主题色系重构
+- 🟢 **自决**：所有视觉/动效/字号/间距细节，基于 impeccable 输出（事后 daily 报备）
+- 🔴 **必回 CEO 三类**（权威见 `docs/operating-principles.md`）：
+  1. 不可逆的钱（订阅定价 / 付费 SDK / 合同支出）
+  2. 对外发布（提审 / 外部 TestFlight / 公开发帖）
+  3. 产品定位切换（品牌 / tagline / 核心人格 / 版本主题）
+- 本角色高频触发：品牌视觉总方向切换（Fog → XX）· 主题色系重构 · 字体系统替换 · 已 ship 视觉删除
 
 ## 交付去向
 
 - 诊断：写进 daily 日报或 `docs/ui-audit-YYYY-MM-DD.md`
 - 实装代码路径：`simone ios/Simone/Views/Visualizers/`
 - 修改完自己 build + 真机看效果再报交付
+
+## 硬规矩
+
+- **状态变化立刻覆盖更新 `docs/team-status.md` 自己那行**（时间戳 + DONE / BLOCKED / IN-PROGRESS），不 append、不等 COO 问
+- **角色 / Phase 切换走 CLAUDE.md 的 Context 防爆 SOP**：更 status → `/clear` → 读锚点 → 开干
 
 ## 不碰
 

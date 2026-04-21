@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "TODAY=$(date +%F); [ -f \"docs/daily/$TODAY.md\" ] || jq -n --arg t \"$TODAY\" '{systemMessage: \"❌ 今日 daily 未写：docs/daily/\\($t).md\"}'"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "IDEAS=$(grep -cv '^\\s*$\\|^#' docs/inbox/ceo-ideas-log.md 2>/dev/null || echo 0); PROPS=$(grep -cv '^\\s*$\\|^#' docs/inbox/proposals-for-strategist.md 2>/dev/null || echo 0); if [ \"$IDEAS\" -gt 30 ] || [ \"$PROPS\" -gt 30 ]; then jq -n --arg i \"$IDEAS\" --arg p \"$PROPS\" '{systemMessage: (\"📥 inbox 积压：ceo-ideas-log \"+$i+\" 行 / proposals-for-strategist \"+$p+\" 行，Assistant 该分诊了\")}'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

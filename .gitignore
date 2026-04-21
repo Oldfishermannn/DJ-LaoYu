@@ -1,6 +1,9 @@
 # macOS
 .DS_Store
 
+# Claude Code local worktrees（app 创建的临时工作树，不入库）
+.claude/worktrees/
+
 # Brainstorming visual companion
 .superpowers/
 
