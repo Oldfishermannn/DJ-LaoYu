@@ -41,6 +41,18 @@
 - **状态变化立刻覆盖更新 `docs/team-status.md` 自己那行**（时间戳 + DONE / BLOCKED / IN-PROGRESS），不 append、不等 CEO 问
 - **角色 / Phase 切换走 CLAUDE.md 的 Context 防爆 SOP**：更 status → `/clear` → 读锚点 → 开干
 
+## 并行工具选型
+
+默认 **background subagent**（主工作目录）。只有以下三种情况才开 **git worktree**：
+
+1. **两条以上真动代码的独立线** — 例：iOS Engineer 改 PromptBuilder 同时 UI/UX Engineer 改 design tokens，避免抢 HEAD / 互相覆盖
+2. **高风险实验 / 大改** — v1.4a 频谱耦合、StoreKit 接入、架构级重构；废弃直接 `ExitWorktree` 删目录，不污染 main
+3. **时间跨度 > 半天的长任务** — 主窗口要同时继续别的活，物理隔离更干净
+
+反例（不开 worktree）：纯研究 / 文档 / 单文件小改 / UI 验收（模拟器只有一个，天然串行）。
+
+流程：`superpowers:using-git-worktrees` skill → 起 worktree → subagent 在里面干 → 收尾强制写 `team-status.md` → COO 审查 → 合回 main → push。
+
 ## 不碰
 
 - 产品定位和品牌（那是 CEO 的）
