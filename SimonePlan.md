@@ -1,37 +1,31 @@
 # Simone 路线图
 
-> 战略 v2 起点：2026-04-25（v1.3.0 已上架）。
-> 路径：**Fork B — Retention First + iPad 适配**（CEO 2026-04-25 拍板）。
+> 战略 v2.1 起点：2026-04-25（v1.3.0 已上架）。
+> 路径：**Retention First + iPad 适配**（CEO 2026-04-25 拍板）。
 
 ---
 
 ## TL;DR
 
-- **现状**：v1.3.0 ✅ LIVE 2026-04-25，零收入，月 Lyria API 烧待测
-- **战略**：先抬留存（系统集成 + 单 signature + iPad），观测 30 天再决定 paywall
+- **现状**：v1.3.0 ✅ LIVE 2026-04-25，零收入
+- **成本**：Lyria API **免费**（无 burn rate 压力）
+- **战略**：抬留存 → 观测 30 天 → 看数据决定 paywall
 - **顺序**：先稳 → 再变 → 再美 → **再黏（系统集成 + iPad）→ 再签名 → 再观测 → 再赚**
-- **节奏**：1 周 1 主抓手，6 周内有数字决策
+- **节奏**：1 周 1 主抓手，5 周内有数字决策
 
 ---
 
 ## 战略核心
 
-**留存 > 货币化**——前提：月 Lyria 烧 < $200。每周一查 billing，超阈值自动跳 Fork A（paywall 优先）。
+**留存 > 货币化**——API 免费意味着不靠 paywall 续命，可以慢慢挑时机。
 
-**为什么 Fork B**：visualizer / 签名美学不抬 D7。锁屏 ◁▷ + Widget 才是日常使用 anchor。iPad 把单设备 app 变跨设备，受众 ×1.5。
+**Why Retention First**：visualizer / 签名美学不抬 D7。锁屏 ◁▷ + Widget 是日常使用 anchor。iPad 把单设备 app 变跨设备，受众 ×1.5。
 
 **砍掉**：v1.4a 其余 4 频道 signature（Jazz/Rock/R&B/Electronic）· v1.4b Studio 档兑现 · 38 通用 visualizer 池清理 — 全等留存数据再说。
 
 ---
 
-## 6 周节奏
-
-### Week 0（今天，半天）— Money 体检
-
-- [ ] 查 Google Cloud billing（v1.3 上架前 7 天 Lyria 用量 → 月预估）
-- [ ] 查 ASC 后台首日 install 数
-- [ ] 算 unit economics：每用户日均 listen-min × Lyria 单价
-- [ ] **决策点**：月烧 > $200 → 跳 Fork A；< $200 → 走下面 Week 1+
+## 5 周节奏
 
 ### Week 1 — 系统集成（锁屏 + Widget）
 
@@ -61,7 +55,9 @@
 
 - **不加功能**，只 bug fix
 - 收集：D1 / D7 / D14 install→active 比 · App Store review 文字 · CEO 自测时长
-- **决策点**：D7 > 25% → Week 6 ship paywall；< 25% → 再加 1 个增长抓手
+- **决策点**：
+  - D7 > 25% → 进 Week 6 ship paywall
+  - D7 < 25% → 不卖钱，回 W1 加新留存抓手（评估 Spotify import / Jam 模式 / 锁屏 evolve）
 
 ### Week 6 — Paywall（条件触发）
 
@@ -75,11 +71,10 @@
 
 ## 待 CEO 拍板（🔴）
 
-1. **Week 0 Money 体检结果出来后** → Fork A vs Fork B 走向（如果月烧 > $200，整个计划重排）
-2. **Week 6 paywall 价格 / free 池阈值**（30min / 1h / 2h × $2.99 / $4.99）
-3. **Week 5 决策点 D7 阈值**（推荐 25%，可调 20-30%）
-
-其余全 COO 自决。
+仅 Week 5/6 触发时再问，现在不占 CEO 认知：
+1. paywall 价格（$2.99 / $4.99 / $9.99）
+2. free 池阈值（30min / 1h / 2h × day）
+3. D7 决策阈值（默认 25%，可调 20-30%）
 
 ---
 
@@ -90,6 +85,7 @@
 - 38 通用 visualizer 池清理——留着，等 v1.4b 真做再评估
 - Mac 版（独立上架）——iPad 适配吃掉跨设备需求，Mac 等 v2.0
 - CloudKit 同步——0 用户跨设备 = 0 优先级
+- Money / billing 监控——Lyria API 免费，不需要
 
 ---
 
