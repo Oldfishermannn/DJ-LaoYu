@@ -6,8 +6,8 @@
 
 ## TL;DR
 
-- **当前状态**：v1.3.0 build 14 🔴 提审 2026-04-23（submission `48493a99`）等 Apple
-- **下一锚点**：v1.3.0 审核通过后起 v1.4a signature visualizers 主线
+- **当前状态**：v1.3.0 ✅ **LIVE on App Store**（2026-04-25 通审上架）
+- **下一锚点**：v1.4a Lo-fi Signature Visualizer
 - **发版节奏**：串行，上一版 ship 前不开下一版
 - **战略顺序**：先稳 → 再变 → 再美 → 再签名 → 再赚 → 再连
 
@@ -19,8 +19,8 @@
 |---|---|---|
 | v1.0 – v1.2 | 上架 + 稳定 + 交互 + Fog City 视觉 | ✅ shipped |
 | v1.2.1 | Evolve PromptBuilder 三维度 | ✅ shipped |
-| **v1.3.0** | **60 style rewrite + OnboardingView + AppIcon + Lo-fi 回首屏** | 🔴 **WAITING_FOR_REVIEW** |
-| **v1.4a** | **Signature Visualizers**（分频道签名视觉） | 📋 Lo-fi 分支进行中 `feature/v1.4a-signature-lofi` |
+| v1.3.0 | 60 style rewrite + OnboardingView + AppIcon + Lo-fi 回首屏 | ✅ **shipped 2026-04-25** |
+| **v1.4a** | **Signature Visualizers**（分频道签名视觉） | 📋 Lo-fi 分支待开工 `feature/v1.4a-signature-lofi` |
 | v1.4b | Studio 档兑现 | 📋 规划中 |
 | v1.4c | iOS 系统集成（锁屏 / 灵动岛 / Widget） | 📋 规划中 |
 
